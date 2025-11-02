@@ -1,0 +1,25 @@
+{
+  "name": "portfolio-services",
+  "version": "1.0.0",
+  "description": "E-Portfolio backend services",
+  "type": "module",
+  "scripts": {
+    "init-db": "node portfolio-api/init-db.js",
+    "gh-indexer": "node gh-indexer/index.js",
+    "portfolio-api": "node portfolio-api/server.js",
+    "dev": "concurrently \"npm:gh-indexer\" \"npm:portfolio-api\""
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.0.0",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "node-fetch": "^3.3.2",
+    "yaml": "^2.3.4",
+    "gray-matter": "^4.0.3",
+    "glob": "^10.3.10"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

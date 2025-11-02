@@ -1,0 +1,24 @@
+{
+  "name": "ai-safety-services",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "AI Safety & LLM Security microservices",
+  "scripts": {
+    "init-db": "node shared/init-db.js",
+    "prompt-monitor": "PORT=5011 node prompt-monitor-api/server.js",
+    "redteam": "PORT=5012 node redteam-api/server.js",
+    "robustness": "PORT=5013 node robustness-api/server.js",
+    "tool-gate": "PORT=5014 node tool-gate-api/server.js",
+    "dev": "npm-run-all --parallel prompt-monitor redteam robustness tool-gate",
+    "seed": "node shared/seed.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "express": "^4.21.2",
+    "cors": "^2.8.5",
+    "axios": "^1.7.9"
+  },
+  "devDependencies": {
+    "npm-run-all": "^4.1.5"
+  }
+}
