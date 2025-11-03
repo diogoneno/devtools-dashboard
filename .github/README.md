@@ -14,7 +14,6 @@ Before the workflow can run, configure these GitHub secrets:
 | `DEPLOY_HOST` | Production server hostname or IP |
 | `DEPLOY_USER` | SSH username (e.g., `deploy`) |
 | `DEPLOY_PATH` | Deployment directory (e.g., `/var/www/devtools`) |
-| `PRODUCTION_URL` | Production URL (e.g., `https://devtools.example.com`) |
 
 **See [SETUP-SECRETS.md](SETUP-SECRETS.md) for detailed setup instructions.**
 

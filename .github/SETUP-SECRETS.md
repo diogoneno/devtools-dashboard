@@ -12,7 +12,6 @@ The deployment workflow requires these secrets to be configured in your GitHub r
 | `DEPLOY_HOST` | Production server hostname/IP | `devtools.example.com` or `192.168.1.100` |
 | `DEPLOY_USER` | SSH username on production server | `deploy` or `ubuntu` |
 | `DEPLOY_PATH` | Full path to deployment directory | `/var/www/devtools` |
-| `PRODUCTION_URL` | Production URL (for environment tracking) | `https://devtools.example.com` |
 
 ## Step-by-Step Setup
 
@@ -99,12 +98,6 @@ b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
 - **Value:** Full path to deployment directory
   - Example: `/var/www/devtools`
 
-#### PRODUCTION_URL
-
-- **Name:** `PRODUCTION_URL`
-- **Value:** Your production URL
-  - Example: `https://devtools.example.com`
-
 ### 5. Test SSH Connection
 
 Before running the workflow, test the SSH connection:
@@ -124,7 +117,7 @@ touch /var/www/devtools/test.txt && rm /var/www/devtools/test.txt
 
 After adding secrets:
 1. Go to **Settings** → **Secrets and variables** → **Actions**
-2. You should see all 5 secrets listed
+2. You should see all 4 secrets listed
 3. Secrets are encrypted and cannot be viewed after creation
 
 ## Security Best Practices

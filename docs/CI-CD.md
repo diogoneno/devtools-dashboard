@@ -190,7 +190,6 @@ SSH_PRIVATE_KEY         - Private SSH key for deployment user
 DEPLOY_HOST            - Production server hostname or IP
 DEPLOY_USER            - SSH username (e.g., 'deploy')
 DEPLOY_PATH            - Deployment directory (e.g., '/var/www/devtools')
-PRODUCTION_URL         - Production URL (e.g., 'https://devtools.example.com')
 ```
 
 ### Optional API Keys
@@ -226,7 +225,6 @@ cat ~/.ssh/github_deploy
    - `DEPLOY_HOST`: Your server IP or domain
    - `DEPLOY_USER`: SSH username
    - `DEPLOY_PATH`: `/var/www/devtools`
-   - `PRODUCTION_URL`: `https://yourdomain.com`
 
 ### 3. Test SSH Connection
 
