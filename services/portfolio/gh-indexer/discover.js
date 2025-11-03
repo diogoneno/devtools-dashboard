@@ -1,3 +1,12 @@
+/**
+ * GitHub repository discovery and module metadata extraction.
+ *
+ * WHY: E-portfolios are often scattered across GitHub repositories without
+ * a central catalog. This module automates discovery of learning modules by
+ * scanning repositories for standardized structures (READMEs, outcomes.yaml,
+ * rubrics) and building a unified index. This eliminates manual catalog
+ * maintenance and enables students to organize work organically in Git.
+ */
 import fetch from 'node-fetch';
 import { parse as parseYAML } from 'yaml';
 import matter from 'gray-matter';
@@ -5,6 +14,59 @@ import matter from 'gray-matter';
 const OUTCOMES_FILES = ['outcomes.yaml', 'outcomes.json', 'learning-outcomes.md'];
 const RUBRIC_FILES = ['rubric.yaml', 'rubric.json', 'rubric.md'];
 
+/**
+ * Discovers and indexes learning modules from GitHub repositories.
+ *
+ * WHY: Students organize their portfolio work across multiple repositories
+ * without a central index. This function automates discovery by scanning
+ * repositories for module directories (e.g., /modules/*, /labs/*) and
+ * extracting structured metadata (learning outcomes, rubrics, artifacts).
+ * Supports both single-repo and org-wide scanning modes to accommodate
+ * different portfolio organization strategies.
+ *
+ * @param {Object} config - Discovery configuration
+ * @param {string} config.mode - 'single-repo' or 'org-wide'
+ * @param {string} config.owner - GitHub username or organization name
+ * @param {string} config.repo - Repository name (required for single-repo mode)
+ * @param {string} [config.token] - GitHub personal access token for private repos
+ * @param {string[]} config.modulePaths - Path patterns to scan (e.g., ['modules/*', 'labs/*'])
+ * @param {boolean} [config.publicOnly=false] - Skip private repos in org-wide mode
+ *
+ * @returns {Promise<Array<Object>>} Array of discovered module metadata objects
+ * @returns {string} return[].slug - URL-safe module identifier
+ * @returns {string} return[].name - Human-readable module name
+ * @returns {string} return[].repo - 'owner/repo' identifier
+ * @returns {string} return[].path - Path to module directory in repo
+ * @returns {string} return[].readme - Markdown content from README.md
+ * @returns {Array<Object>} return[].outcomes - Learning outcomes with evidence tracking
+ * @returns {Array<Object>} return[].rubric - Assessment criteria with levels
+ * @returns {Array<Object>} return[].artifacts - Discovered files (code, docs, notebooks)
+ *
+ * @throws {Error} If GitHub API returns non-200 status (network errors, rate limits, 404s)
+ * @throws {Error} If invalid mode specified (must be 'single-repo' or 'org-wide')
+ *
+ * @example
+ * // Single repository scan
+ * const config = {
+ *   mode: 'single-repo',
+ *   owner: 'student123',
+ *   repo: 'cs-portfolio',
+ *   modulePaths: ['modules/*'],
+ *   token: process.env.GITHUB_TOKEN
+ * };
+ * const modules = await discoverModules(config);
+ * // Returns: [{ slug: 'module-1', name: 'Module 1', outcomes: [...], ... }]
+ *
+ * @example
+ * // Organization-wide scan (all repos)
+ * const config = {
+ *   mode: 'org-wide',
+ *   owner: 'university-cs',
+ *   modulePaths: ['assignments/*', 'projects/*'],
+ *   publicOnly: true
+ * };
+ * const modules = await discoverModules(config);
+ */
 export async function discoverModules(config) {
   const modules = [];
 

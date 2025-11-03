@@ -285,6 +285,22 @@ GITHUB_TOKEN=               # Optional for public repos
 
 ## 🛠️ Development
 
+### Code Documentation
+
+All JavaScript functions are documented with comprehensive JSDoc comments including:
+- **WHY the function exists** (not just what it does)
+- Parameter types and return values
+- Error conditions and edge cases
+- Realistic usage examples
+
+**See:** [JSDoc Style Guide](docs/JSDOC-STYLE-GUIDE.md) for documentation standards
+
+**Key documented modules:**
+- `services/*/init-db.js` - Database initialization and connections
+- `services/portfolio/gh-indexer/discover.js` - GitHub repository discovery
+- `services/misinfo/ingest-api/gdelt-connector.js` - GDELT API integration
+- `services/ai-safety/shared/init-db.js` - AI safety database setup
+
 ### Adding a New Tool
 
 1. Create component in appropriate category folder
@@ -292,11 +308,13 @@ GITHUB_TOKEN=               # Optional for public repos
 3. Add route in `App.jsx`
 4. Add navigation link in `Layout.jsx`
 5. Use shared `ToolLayout.css` for styling
+6. **Document exported functions with JSDoc** (see style guide)
 
 ### Creating a New Microservice
 
 1. Create service directory under `services/`
 2. Add `package.json` with Express
+3. **Document all exported functions with JSDoc**
 3. Create database schema in `schema.sql`
 4. Implement REST endpoints in `server.js`
 5. Add init script and startup command
