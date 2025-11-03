@@ -10,7 +10,8 @@
     "logs-api": "node logs-api/server.js",
     "compliance-api": "node compliance-api/server.js",
     "seed": "node seed-data.js",
-    "dev": "concurrently \"npm:backup-api\" \"npm:ransomware-api\" \"npm:logs-api\" \"npm:compliance-api\""
+    "dev": "concurrently \"npm:backup-api\" \"npm:ransomware-api\" \"npm:logs-api\" \"npm:compliance-api\"",
+    "test": "node --check backup-api/server.js && node --check ransomware-api/server.js && node --check logs-api/server.js && node --check compliance-api/server.js && echo \"✓ All services syntax check passed\""
   },
   "dependencies": {
     "better-sqlite3": "^11.0.0",

@@ -7,7 +7,8 @@
     "init-db": "node portfolio-api/init-db.js",
     "gh-indexer": "node gh-indexer/index.js",
     "portfolio-api": "node portfolio-api/server.js",
-    "dev": "concurrently \"npm:gh-indexer\" \"npm:portfolio-api\""
+    "dev": "concurrently \"npm:gh-indexer\" \"npm:portfolio-api\"",
+    "test": "node --check gh-indexer/index.js && node --check portfolio-api/server.js && echo \"✓ All services syntax check passed\""
   },
   "dependencies": {
     "better-sqlite3": "^11.0.0",

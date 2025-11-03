@@ -10,7 +10,7 @@
     "start:nlp": "node nlp-api/server.js",
     "start:forensics": "node forensics-api/server.js",
     "dev": "concurrently \"npm:start:*\"",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --check ingest-api/server.js && node --check facts-api/server.js && node --check nlp-api/server.js && node --check forensics-api/server.js && echo \"✓ All services syntax check passed\""
   },
   "keywords": ["misinformation", "fact-checking", "nlp"],
   "author": "",

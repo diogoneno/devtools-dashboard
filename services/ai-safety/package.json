@@ -10,7 +10,8 @@
     "robustness": "PORT=5013 node robustness-api/server.js",
     "tool-gate": "PORT=5014 node tool-gate-api/server.js",
     "dev": "npm-run-all --parallel prompt-monitor redteam robustness tool-gate",
-    "seed": "node shared/seed.js"
+    "seed": "node shared/seed.js",
+    "test": "node --check prompt-monitor-api/server.js && node --check redteam-api/server.js && node --check robustness-api/server.js && node --check tool-gate-api/server.js && echo \"✓ All services syntax check passed\""
   },
   "dependencies": {
     "better-sqlite3": "^11.8.1",
