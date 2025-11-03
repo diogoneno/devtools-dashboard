@@ -16,7 +16,17 @@ build/
 .env
 .env.local
 .env.*.local
-*.env
+backend/.env
+frontend/.env
+services/**/.env
+
+# IMPORTANT: Keep example and production template files
+!.env.example
+!.env.production
+!frontend/.env.example
+!frontend/.env.production
+!backend/.env.example
+!services/**/.env.example
 
 # Databases
 *.db

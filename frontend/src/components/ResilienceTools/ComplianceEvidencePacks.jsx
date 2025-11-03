@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import '../ToolLayout.css';
 
-const COMPLIANCE_API = 'http://localhost:5010/api';
+const COMPLIANCE_API = import.meta.env.VITE_COMPLIANCE_API || 'http://localhost:5010/api';
 
 function ComplianceEvidencePacks() {
   const [iso27001, setIso27001] = useState(null);

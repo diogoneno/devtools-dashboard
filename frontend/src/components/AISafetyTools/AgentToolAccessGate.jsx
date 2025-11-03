@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../ToolLayout.css';
 
-const TOOLGATE_API = 'http://localhost:5014/api';
+const TOOLGATE_API = import.meta.env.VITE_TOOLGATE_API || 'http://localhost:5014/api';
 
 function AgentToolAccessGate() {
   const [gates, setGates] = useState([]);

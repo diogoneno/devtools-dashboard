@@ -2,7 +2,7 @@ import { useState } from 'react';
 import axios from 'axios';
 import '../ToolLayout.css';
 
-const NLP_API = 'http://localhost:5003/api/nlp';
+const NLP_API = import.meta.env.VITE_MISINFO_NLP_API ? `${import.meta.env.VITE_MISINFO_NLP_API}/nlp` : 'http://localhost:5003/api/nlp';
 
 function StanceToxicity() {
   const [claim, setClaim] = useState('');

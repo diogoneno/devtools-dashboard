@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../ToolLayout.css';
 
-const BACKUP_API = 'http://localhost:5007/api';
+const BACKUP_API = import.meta.env.VITE_BACKUP_API || 'http://localhost:5007/api';
 
 function BackupResilienceCenter() {
   const [kpis, setKpis] = useState(null);

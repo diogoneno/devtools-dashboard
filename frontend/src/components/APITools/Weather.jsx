@@ -2,6 +2,8 @@ import { useState } from 'react';
 import axios from 'axios';
 import '../ToolLayout.css';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
 const Weather = () => {
   const [city, setCity] = useState('London');
   const [weather, setWeather] = useState(null);
@@ -19,7 +21,7 @@ const Weather = () => {
     setWeather(null);
 
     try {
-      const response = await axios.get(`http://localhost:5000/api/weather?city=${city}`);
+      const response = await axios.get(`${API_BASE_URL}/api/weather?city=${city}`);
       setWeather(response.data);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to fetch weather data. Make sure the Flask backend is running and API key is configured.');

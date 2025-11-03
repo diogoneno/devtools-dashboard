@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../ToolLayout.css';
 
-const PROMPT_MONITOR_API = 'http://localhost:5011/api';
+const PROMPT_MONITOR_API = import.meta.env.VITE_PROMPT_MONITOR_API || 'http://localhost:5011/api';
 
 function PromptSafetyMonitor() {
   const [input, setInput] = useState('');

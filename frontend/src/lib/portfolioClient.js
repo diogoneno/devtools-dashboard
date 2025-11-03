@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-const GH_INDEXER_API = 'http://localhost:5005/api';
-const PORTFOLIO_API = 'http://localhost:5006/api';
+const GH_INDEXER_API = import.meta.env.VITE_PORTFOLIO_INDEXER_API || 'http://localhost:5005/api';
+const PORTFOLIO_API = import.meta.env.VITE_PORTFOLIO_API || 'http://localhost:5006/api';
 
 class PortfolioClient {
   // GitHub Indexer methods

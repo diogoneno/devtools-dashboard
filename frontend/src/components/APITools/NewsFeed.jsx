@@ -2,6 +2,8 @@ import { useState } from 'react';
 import axios from 'axios';
 import '../ToolLayout.css';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
 const NewsFeed = () => {
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -13,7 +15,7 @@ const NewsFeed = () => {
     setArticles([]);
 
     try {
-      const response = await axios.get('http://localhost:5000/api/news');
+      const response = await axios.get(`${API_BASE_URL}/api/news`);
       setArticles(response.data.articles);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to fetch news. Make sure the Flask backend is running.');

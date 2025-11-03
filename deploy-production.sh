@@ -21,6 +21,14 @@ echo -e "${BLUE}Installing dependencies...${NC}"
 
 # Frontend
 cd frontend
+echo -e "${BLUE}Configuring production environment...${NC}"
+# Copy production environment variables for build
+if [ -f .env.production ]; then
+    cp .env.production .env
+    echo -e "${GREEN}✓ Production environment configured${NC}"
+else
+    echo -e "${YELLOW}⚠ Warning: .env.production not found, using development settings${NC}"
+fi
 npm install
 npm run build
 cd ..

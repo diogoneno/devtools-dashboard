@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../ToolLayout.css';
 
-const INGEST_API = 'http://localhost:5001/api';
+const INGEST_API = import.meta.env.VITE_MISINFO_INGEST_API || 'http://localhost:5001/api';
 
 const COMMON_FEEDS = {
   'TechCrunch': 'https://techcrunch.com/feed/',

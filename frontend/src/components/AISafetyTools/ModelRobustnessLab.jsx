@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../ToolLayout.css';
 
-const ROBUSTNESS_API = 'http://localhost:5013/api';
+const ROBUSTNESS_API = import.meta.env.VITE_ROBUSTNESS_API || 'http://localhost:5013/api';
 
 function ModelRobustnessLab() {
   const [text, setText] = useState('');

@@ -144,14 +144,36 @@ cd ../resilience && npm run init-db
 cd ../ai-safety && npm run init-db
 ```
 
-5. **Configure Environment Variables** (optional)
+5. **Configure Environment Variables**
+
+**Frontend (Required for deployment):**
+```bash
+cd frontend
+# For development - already created from .env.example
+cat .env.example > .env
+
+# For production - customize with your domain/reverse proxy paths
+# Edit .env.production with your production API URLs
+```
+
+The frontend uses environment variables to connect to backend services. In development, it connects to `localhost:5000-5014`. In production, you'll need to configure these to point to your actual server or reverse proxy paths.
+
+**Backend (Optional - for external API keys):**
 ```bash
 # Copy example files
 cp backend/.env.example backend/.env
-cp services/misinfo/.env.example services/misinfo/.env
-cp services/portfolio/.env.example services/portfolio/.env
 
 # Edit with your API keys (optional for most features)
+# Only needed if you want to use Weather API, News API, etc.
+```
+
+**Microservices (Coming soon):**
+```bash
+# .env.example files will be added for microservices configuration
+# cp services/misinfo/.env.example services/misinfo/.env
+# cp services/portfolio/.env.example services/portfolio/.env
+# cp services/resilience/.env.example services/resilience/.env
+# cp services/ai-safety/.env.example services/ai-safety/.env
 ```
 
 ### Running the Application

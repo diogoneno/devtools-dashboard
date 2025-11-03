@@ -2,6 +2,8 @@ import { useState } from 'react';
 import axios from 'axios';
 import '../ToolLayout.css';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
 const CurrencyConverter = () => {
   const [amount, setAmount] = useState('100');
   const [fromCurrency, setFromCurrency] = useState('USD');
@@ -19,7 +21,7 @@ const CurrencyConverter = () => {
 
     try {
       const response = await axios.get(
-        `http://localhost:5000/api/currency?from=${fromCurrency}&to=${toCurrency}&amount=${amount}`
+        `${API_BASE_URL}/api/currency?from=${fromCurrency}&to=${toCurrency}&amount=${amount}`
       );
       setResult(response.data);
     } catch (err) {

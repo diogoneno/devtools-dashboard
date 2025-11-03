@@ -2,6 +2,8 @@ import { useState } from 'react';
 import axios from 'axios';
 import '../ToolLayout.css';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
 const IPLookup = () => {
   const [ip, setIp] = useState('');
   const [data, setData] = useState(null);
@@ -14,7 +16,7 @@ const IPLookup = () => {
     setData(null);
 
     try {
-      const response = await axios.get(`http://localhost:5000/api/ip-lookup?ip=${ip}`);
+      const response = await axios.get(`${API_BASE_URL}/api/ip-lookup?ip=${ip}`);
       setData(response.data);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to lookup IP address');
@@ -30,7 +32,7 @@ const IPLookup = () => {
     setData(null);
 
     try {
-      const response = await axios.get('http://localhost:5000/api/ip-lookup');
+      const response = await axios.get(`${API_BASE_URL}/api/ip-lookup`);
       setData(response.data);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to lookup IP address');

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../ToolLayout.css';
 
-const REDTEAM_API = 'http://localhost:5012/api';
+const REDTEAM_API = import.meta.env.VITE_REDTEAM_API || 'http://localhost:5012/api';
 
 function LLMRedTeamHarness() {
   const [recipes, setRecipes] = useState([]);

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import axios from 'axios';
 import '../ToolLayout.css';
 
-const FORENSICS_API = 'http://localhost:5004/api/forensics';
+const FORENSICS_API = import.meta.env.VITE_MISINFO_FORENSICS_API ? `${import.meta.env.VITE_MISINFO_FORENSICS_API}/forensics` : 'http://localhost:5004/api/forensics';
 
 function MediaForensics() {
   const [imageUrl, setImageUrl] = useState('');

@@ -2,8 +2,8 @@ import { useState } from 'react';
 import axios from 'axios';
 import '../ToolLayout.css';
 
-const FACTS_API = 'http://localhost:5002/api/facts';
-const NLP_API = 'http://localhost:5003/api/nlp';
+const FACTS_API = import.meta.env.VITE_MISINFO_FACTS_API ? `${import.meta.env.VITE_MISINFO_FACTS_API}/facts` : 'http://localhost:5002/api/facts';
+const NLP_API = import.meta.env.VITE_MISINFO_NLP_API ? `${import.meta.env.VITE_MISINFO_NLP_API}/nlp` : 'http://localhost:5003/api/nlp';
 
 function ClaimFactExplorer() {
   const [text, setText] = useState('');

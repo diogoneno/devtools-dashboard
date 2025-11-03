@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import '../ToolLayout.css';
 
-const RANSOMWARE_API = 'http://localhost:5008/api';
+const RANSOMWARE_API = import.meta.env.VITE_RANSOMWARE_API || 'http://localhost:5008/api';
 
 function RansomwareEarlyWarning() {
   const [signals, setSignals] = useState(null);

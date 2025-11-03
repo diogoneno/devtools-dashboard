@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Network } from 'vis-network';
 import '../ToolLayout.css';
 
-const NLP_API = 'http://localhost:5003/api/nlp';
+const NLP_API = import.meta.env.VITE_MISINFO_NLP_API ? `${import.meta.env.VITE_MISINFO_NLP_API}/nlp` : 'http://localhost:5003/api/nlp';
 
 function PropagationGraphs() {
   const [loading, setLoading] = useState(false);
