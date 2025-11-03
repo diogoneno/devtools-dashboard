@@ -10,7 +10,7 @@ on:
   workflow_dispatch:  # Allow manual triggers
 
 env:
-  NODE_VERSION: '18'
+  NODE_VERSION: '20'
   PYTHON_VERSION: '3.8'
 
 jobs:
@@ -32,7 +32,7 @@ jobs:
       - name: Install frontend dependencies
         run: |
           cd frontend
-          npm ci
+          npm ci --prefer-offline --no-audit
 
       - name: Lint frontend code
         run: |
@@ -103,7 +103,7 @@ jobs:
       - name: Install ${{ matrix.service }} dependencies
         run: |
           cd services/${{ matrix.service }}
-          npm ci
+          npm ci --prefer-offline --no-audit
 
       - name: Initialize ${{ matrix.service }} database
         run: |
@@ -137,14 +137,14 @@ jobs:
       - name: Install all dependencies
         run: |
           # Frontend
-          cd frontend && npm ci && cd ..
+          cd frontend && npm ci --prefer-offline --no-audit && cd ..
 
           # Backend
           cd backend && pip install -r requirements.txt && cd ..
 
           # Microservices
           for service in misinfo portfolio resilience ai-safety; do
-            cd services/$service && npm ci && cd ../..
+            cd services/$service && npm ci --prefer-offline --no-audit && cd ../..
           done
 
       - name: Initialize databases
@@ -281,11 +281,11 @@ jobs:
             rm /tmp/${{ env.DEPLOY_PACKAGE }}
 
             # Install/update dependencies
-            cd frontend && npm ci --production && cd ..
+            cd frontend && npm ci --production --prefer-offline --no-audit && cd ..
             cd backend && pip3 install -r requirements.txt && cd ..
 
             for service in misinfo portfolio resilience ai-safety; do
-              cd services/\$service && npm ci --production && cd ../..
+              cd services/\$service && npm ci --production --prefer-offline --no-audit && cd ../..
             done
 
             # Initialize databases if needed

@@ -5,7 +5,7 @@ This guide covers deploying DevTools Dashboard to a production server with nginx
 ## Prerequisites
 
 - Ubuntu 20.04+ or similar Linux distribution
-- Node.js 18+
+- Node.js 20+ (required by Vite 7 and React Router 7)
 - Python 3.8+
 - nginx web server
 - PM2 for process management
@@ -40,8 +40,8 @@ sudo apt update && sudo apt upgrade -y
 # Install nginx
 sudo apt install nginx -y
 
-# Install Node.js 18
-curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+# Install Node.js 20
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install nodejs -y
 
 # Install Python and pip

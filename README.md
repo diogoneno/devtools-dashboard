@@ -105,7 +105,7 @@ Defensive security for AI systems:
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js 18+
+- Node.js 20+ (required by Vite 7 and React Router 7)
 - Python 3.8+
 - npm or yarn
 

@@ -63,8 +63,8 @@ The CI/CD pipeline automatically builds, tests, and deploys the application on e
 
 **Steps:**
 - Checkout code
-- Setup Node.js 18 with npm cache
-- Install dependencies (`npm ci`)
+- Setup Node.js 20 with npm cache
+- Install dependencies (`npm ci --prefer-offline --no-audit`)
 - Run ESLint
 - Build production bundle
 - Upload build artifact for deployment
