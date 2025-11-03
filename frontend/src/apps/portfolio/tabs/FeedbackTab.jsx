@@ -1,18 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import portfolioClient from '../../../lib/portfolioClient';
 import ReactMarkdown from 'react-markdown';
 
 function FeedbackTab({ moduleSlug }) {
   const [feedback, setFeedback] = useState([]);
 
-  useEffect(() => {
-    loadFeedback();
-  }, [moduleSlug]);
-
-  const loadFeedback = async () => {
+  const loadFeedback = useCallback(async () => {
     const data = await portfolioClient.getFeedback(moduleSlug);
     setFeedback(data);
-  };
+  }, [moduleSlug]);
+
+  useEffect(() => {
+    loadFeedback();
+  }, [loadFeedback]);
 
   return (
     <div>

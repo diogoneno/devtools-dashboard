@@ -28,7 +28,7 @@ const URLShortener = () => {
         setShortUrl(data);
         setError('');
       }
-    } catch (err) {
+    } catch {
       setError('Failed to shorten URL. Please try again.');
       setShortUrl('');
     } finally {

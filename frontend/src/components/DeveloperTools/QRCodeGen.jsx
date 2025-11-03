@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import QRCode from 'qrcode';
 import '../ToolLayout.css';
 
@@ -6,13 +6,7 @@ const QRCodeGen = () => {
   const [text, setText] = useState('https://example.com');
   const [qrCodeUrl, setQrCodeUrl] = useState('');
 
-  useEffect(() => {
-    if (text) {
-      generateQRCode();
-    }
-  }, [text]);
-
-  const generateQRCode = async () => {
+  const generateQRCode = useCallback(async () => {
     try {
       const url = await QRCode.toDataURL(text, {
         width: 300,
@@ -22,7 +16,13 @@ const QRCodeGen = () => {
     } catch (err) {
       console.error('Error generating QR code:', err);
     }
-  };
+  }, [text]);
+
+  useEffect(() => {
+    if (text) {
+      generateQRCode();
+    }
+  }, [text, generateQRCode]);
 
   const downloadQRCode = () => {
     const link = document.createElement('a');

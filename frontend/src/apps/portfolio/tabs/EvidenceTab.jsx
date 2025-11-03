@@ -1,17 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import portfolioClient from '../../../lib/portfolioClient';
 
 function EvidenceTab({ moduleSlug }) {
   const [artifacts, setArtifacts] = useState([]);
 
-  useEffect(() => {
-    loadArtifacts();
-  }, [moduleSlug]);
-
-  const loadArtifacts = async () => {
+  const loadArtifacts = useCallback(async () => {
     const data = await portfolioClient.getArtifacts(moduleSlug);
     setArtifacts(data);
-  };
+  }, [moduleSlug]);
+
+  useEffect(() => {
+    loadArtifacts();
+  }, [loadArtifacts]);
 
   const getKindIcon = (kind) => {
     const icons = {

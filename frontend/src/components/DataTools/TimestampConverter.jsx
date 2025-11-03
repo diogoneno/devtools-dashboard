@@ -19,7 +19,7 @@ const TimestampConverter = () => {
       const ts = parseInt(timestamp);
       const date = new Date(ts);
       setDatetime(date.toISOString());
-    } catch (err) {
+    } catch {
       setDatetime('Invalid timestamp');
     }
   };
@@ -28,7 +28,7 @@ const TimestampConverter = () => {
     try {
       const date = new Date(datetime);
       setTimestamp(date.getTime().toString());
-    } catch (err) {
+    } catch {
       setTimestamp('Invalid date');
     }
   };

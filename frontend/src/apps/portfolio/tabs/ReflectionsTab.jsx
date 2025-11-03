@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import portfolioClient from '../../../lib/portfolioClient';
 import ReactMarkdown from 'react-markdown';
 
@@ -8,14 +8,14 @@ function ReflectionsTab({ moduleSlug }) {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
 
-  useEffect(() => {
-    loadReflections();
-  }, [moduleSlug]);
-
-  const loadReflections = async () => {
+  const loadReflections = useCallback(async () => {
     const data = await portfolioClient.getReflections(moduleSlug);
     setReflections(data);
-  };
+  }, [moduleSlug]);
+
+  useEffect(() => {
+    loadReflections();
+  }, [loadReflections]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

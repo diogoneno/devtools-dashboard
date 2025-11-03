@@ -107,7 +107,7 @@ const ModelCostCalculator = () => {
           <h3>Cost Comparison</h3>
           <div style={{ maxHeight: '500px', overflow: 'auto' }}>
             {Object.entries(models)
-              .map(([name, _]) => ({ name, ...calculateCost(name) }))
+              .map(([name]) => ({ name, ...calculateCost(name) }))
               .sort((a, b) => a.total - b.total)
               .map((model, idx) => (
                 <div key={model.name} style={{

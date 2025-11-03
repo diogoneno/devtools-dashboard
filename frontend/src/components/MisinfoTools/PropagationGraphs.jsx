@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { Network } from 'vis-network';
 import '../ToolLayout.css';
@@ -13,31 +13,7 @@ function PropagationGraphs() {
   const networkRef = useRef(null);
   const containerRef = useRef(null);
 
-  const buildGraph = async () => {
-    setLoading(true);
-    setError('');
-
-    try {
-      const response = await axios.post(`${NLP_API}/build-graph`, { windowHours });
-      setGraphData(response.data);
-      loadGraphData();
-    } catch (err) {
-      setError(err.response?.data?.error || err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadGraphData = async () => {
-    try {
-      const response = await axios.get(`${NLP_API}/graph`, { params: { limit: 500 } });
-      renderGraph(response.data.edges);
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
-  const renderGraph = (edges) => {
+  const renderGraph = useCallback((edges) => {
     if (!containerRef.current || edges.length === 0) return;
 
     const nodes = new Set();
@@ -46,7 +22,7 @@ function PropagationGraphs() {
       nodes.add(edge.dst_url);
     });
 
-    const visNodes = Array.from(nodes).map((url, idx) => ({
+    const visNodes = Array.from(nodes).map((url) => ({
       id: url,
       label: new URL(url).hostname || url.substring(0, 30),
       title: url
@@ -77,11 +53,35 @@ function PropagationGraphs() {
 
     if (networkRef.current) networkRef.current.destroy();
     networkRef.current = new Network(containerRef.current, data, options);
+  }, []);
+
+  const loadGraphData = useCallback(async () => {
+    try {
+      const response = await axios.get(`${NLP_API}/graph`, { params: { limit: 500 } });
+      renderGraph(response.data.edges);
+    } catch (err) {
+      setError(err.message);
+    }
+  }, [renderGraph]);
+
+  const buildGraph = async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await axios.post(`${NLP_API}/build-graph`, { windowHours });
+      setGraphData(response.data);
+      loadGraphData();
+    } catch (err) {
+      setError(err.response?.data?.error || err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     loadGraphData();
-  }, []);
+  }, [loadGraphData]);
 
   return (
     <div className="tool-container">

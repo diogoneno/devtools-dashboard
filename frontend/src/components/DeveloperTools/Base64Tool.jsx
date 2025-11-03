@@ -22,7 +22,7 @@ const Base64Tool = () => {
       const decoded = atob(input);
       setOutput(decoded);
       setError('');
-    } catch (err) {
+    } catch {
       setError('Error decoding: Invalid Base64 string');
       setOutput('');
     }

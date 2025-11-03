@@ -1,22 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import portfolioClient from '../../../lib/portfolioClient';
 
 function OutcomesTab({ moduleSlug }) {
   const [outcomes, setOutcomes] = useState([]);
   const [artifacts, setArtifacts] = useState([]);
 
-  useEffect(() => {
-    loadData();
-  }, [moduleSlug]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     const [outcomesData, artifactsData] = await Promise.all([
       portfolioClient.getOutcomes(moduleSlug),
       portfolioClient.getArtifacts(moduleSlug)
     ]);
     setOutcomes(outcomesData);
     setArtifacts(artifactsData);
-  };
+  }, [moduleSlug]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   return (
     <div>

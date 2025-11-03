@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import portfolioClient from '../../lib/portfolioClient';
 import OverviewTab from './tabs/OverviewTab';
@@ -15,11 +15,7 @@ function ModulePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    loadModule();
-  }, [moduleSlug]);
-
-  const loadModule = async () => {
+  const loadModule = useCallback(async () => {
     setLoading(true);
     try {
       const data = await portfolioClient.getModule(moduleSlug);
@@ -29,7 +25,11 @@ function ModulePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [moduleSlug]);
+
+  useEffect(() => {
+    loadModule();
+  }, [loadModule]);
 
   if (loading) return <div className="tool-container"><p>Loading module...</p></div>;
   if (error) return <div className="tool-container"><div className="error-message">{error}</div></div>;

@@ -8,7 +8,6 @@ function LLMRedTeamHarness() {
   const [recipes, setRecipes] = useState([]);
   const [selectedRecipe, setSelectedRecipe] = useState('');
   const [target, setTarget] = useState('');
-  const [variables, setVariables] = useState({});
   const [result, setResult] = useState(null);
   const [history, setHistory] = useState([]);
   const [stats, setStats] = useState(null);
@@ -61,7 +60,7 @@ function LLMRedTeamHarness() {
       const response = await axios.post(`${REDTEAM_API}/attack`, {
         recipe: selectedRecipe,
         target: target || null,
-        variables,
+        variables: {},
         dry_run: dryRun
       });
       setResult(response.data.attack);

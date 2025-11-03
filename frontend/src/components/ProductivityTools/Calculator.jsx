@@ -26,7 +26,7 @@ const Calculator = () => {
       const result = Function('"use strict"; return (' + sanitized + ')')();
       setDisplay(String(result));
       setEquation('');
-    } catch (err) {
+    } catch {
       setDisplay('Error');
       setEquation('');
     }

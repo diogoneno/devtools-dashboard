@@ -20,7 +20,6 @@ const SQLInjectionTester = () => {
 
   const testForSQLInjection = () => {
     const dangerous = [];
-    const encoded = encodeURIComponent(testString);
 
     sqlPayloads.forEach(({ payload, type, risk, description }) => {
       if (testString.includes(payload.replace('--', '').trim())) {

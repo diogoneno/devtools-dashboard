@@ -46,7 +46,7 @@ const SubdomainFinder = () => {
           });
           setSubdomains([...found]);
         }
-      } catch (err) {
+      } catch {
         // Subdomain doesn't exist or error
       }
 
