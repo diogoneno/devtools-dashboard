@@ -2,6 +2,8 @@ import { useState } from 'react';
 import axios from 'axios';
 import '../ToolLayout.css';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
 const HTTPHeadersAnalyzer = () => {
   const [url, setUrl] = useState('');
   const [headers, setHeaders] = useState(null);
@@ -21,7 +23,7 @@ const HTTPHeadersAnalyzer = () => {
     setSecurityScore(null);
 
     try {
-      const response = await axios.get(`http://192.168.0.8:5000/api/analyze-headers?url=${encodeURIComponent(url)}`);
+      const response = await axios.get(`${API_BASE_URL}/api/analyze-headers?url=${encodeURIComponent(url)}`);
       setHeaders(response.data.headers);
       setSecurityScore(response.data.security_analysis);
     } catch (err) {

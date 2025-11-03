@@ -2,6 +2,8 @@ import { useState } from 'react';
 import axios from 'axios';
 import '../ToolLayout.css';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
 const SecurityHeadersChecker = () => {
   const [url, setUrl] = useState('');
   const [results, setResults] = useState(null);
@@ -57,7 +59,7 @@ const SecurityHeadersChecker = () => {
     setResults(null);
 
     try {
-      const response = await axios.get(`http://192.168.0.8:5000/api/security-headers?url=${encodeURIComponent(url)}`);
+      const response = await axios.get(`${API_BASE_URL}/api/security-headers?url=${encodeURIComponent(url)}`);
       setResults(response.data);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to check security headers');
