@@ -145,17 +145,77 @@ EOF
 
 echo -e "${GREEN}✅ Production setup complete!${NC}"
 echo ""
-echo "To start all services in production:"
-echo "  pm2 start ecosystem.config.js"
+
+# Check port availability
+echo -e "${BLUE}Checking port availability...${NC}"
+if [ -x "./scripts/check-ports.sh" ]; then
+    ./scripts/check-ports.sh
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}ERROR: Required ports are not available.${NC}"
+        echo "Please stop conflicting services before deploying."
+        exit 1
+    fi
+    echo ""
+fi
+
+# Start all services with PM2
+echo -e "${BLUE}Starting all services with PM2...${NC}"
+pm2 start ecosystem.config.js
+
+# Wait for services to initialize
+echo -e "${YELLOW}Waiting for services to initialize...${NC}"
+sleep 10
+
+# Run health checks
 echo ""
-echo "To monitor services:"
-echo "  pm2 monit"
+echo -e "${BLUE}Running health checks...${NC}"
+if [ -x "./scripts/health-check.sh" ]; then
+    ./scripts/health-check.sh
+    if [ $? -ne 0 ]; then
+        echo ""
+        echo -e "${RED}ERROR: Some services failed health checks!${NC}"
+        echo ""
+        echo "View logs with: pm2 logs"
+        echo "Check service status: pm2 status"
+        echo "Stop services: pm2 stop all"
+        exit 1
+    fi
+else
+    echo -e "${YELLOW}Warning: Health check script not found, skipping...${NC}"
+fi
+
 echo ""
-echo "To view logs:"
-echo "  pm2 logs"
+echo -e "${GREEN}=================================================="
+echo "✅ All services deployed and healthy!"
+echo "==================================================${NC}"
 echo ""
-echo "To stop all services:"
-echo "  pm2 stop all"
+echo "📊 Service Management:"
+echo "  Monitor services:    pm2 monit"
+echo "  View logs:           pm2 logs"
+echo "  Check status:        pm2 status"
+echo "  Restart service:     pm2 restart <name>"
+echo "  Stop all services:   pm2 stop all"
 echo ""
-echo "Frontend build is in: frontend/dist/"
-echo "Serve it with nginx, Apache, or: npx serve frontend/dist -p 5173"
+echo "🌐 Frontend:"
+echo "  Build location:      frontend/dist/"
+echo ""
+echo "🔧 Next Steps - Setup Nginx Reverse Proxy:"
+echo "  1. Copy nginx config:"
+echo "     sudo cp config/nginx/devtools.conf /etc/nginx/sites-available/devtools"
+echo "     sudo cp config/nginx/proxy_params /etc/nginx/"
+echo ""
+echo "  2. Edit config with your domain and paths:"
+echo "     sudo nano /etc/nginx/sites-available/devtools"
+echo ""
+echo "  3. Enable site:"
+echo "     sudo ln -sf /etc/nginx/sites-available/devtools /etc/nginx/sites-enabled/"
+echo "     sudo nginx -t && sudo systemctl reload nginx"
+echo ""
+echo "  4. Setup SSL with Let's Encrypt (recommended):"
+echo "     sudo certbot --nginx -d yourdomain.com"
+echo ""
+echo "📖 Full deployment guide: docs/DEPLOYMENT.md"
+echo ""
+echo "🔍 Health Check:"
+echo "  Run manually:        ./scripts/health-check.sh"
+echo ""

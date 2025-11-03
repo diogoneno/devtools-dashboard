@@ -167,14 +167,27 @@ cp backend/.env.example backend/.env
 # Only needed if you want to use Weather API, News API, etc.
 ```
 
-**Microservices (Coming soon):**
+**Microservices (Optional - for service-specific configuration):**
 ```bash
-# .env.example files will be added for microservices configuration
-# cp services/misinfo/.env.example services/misinfo/.env
-# cp services/portfolio/.env.example services/portfolio/.env
-# cp services/resilience/.env.example services/resilience/.env
-# cp services/ai-safety/.env.example services/ai-safety/.env
+# Copy example files to create your configuration
+cp services/misinfo/.env.example services/misinfo/.env
+cp services/portfolio/.env.example services/portfolio/.env
+cp services/resilience/.env.example services/resilience/.env
+cp services/ai-safety/.env.example services/ai-safety/.env
+
+# Edit each .env file with your settings:
+# - Port configuration (if you need custom ports)
+# - Database paths (if different from defaults)
+# - API keys for external services (optional)
+# - GitHub tokens for private repositories (E-Portfolio)
+# - LLM API keys for testing (AI Safety)
 ```
+
+**Note:** Most services work with default configuration and mock data. You only need to configure `.env` files if you want to:
+- Use external API services (fact-checking, LLM APIs, etc.)
+- Access private GitHub repositories (E-Portfolio)
+- Customize port numbers or database locations
+- Enable advanced features
 
 ### Running the Application
 

@@ -7,7 +7,29 @@ echo "=================================================="
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
+RED='\033[0;31m'
 NC='\033[0m' # No Color
+
+# Cleanup function
+cleanup() {
+    echo -e "\n${YELLOW}Stopping all services...${NC}"
+    kill 0
+    exit 0
+}
+
+# Trap Ctrl+C and call cleanup
+trap cleanup INT TERM
+
+# Check port availability
+echo -e "${BLUE}Checking port availability...${NC}"
+if [ -x "./scripts/check-ports.sh" ]; then
+    ./scripts/check-ports.sh
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}ERROR: Required ports are not available. Exiting.${NC}"
+        exit 1
+    fi
+    echo ""
+fi
 
 # Check if databases exist, initialize if not
 if [ ! -f "data/misinfo.db" ]; then
@@ -77,13 +99,32 @@ PORT=5014 node tool-gate-api/server.js &
 cd ../..
 
 # Give services time to start
-sleep 3
+echo ""
+echo -e "${YELLOW}Waiting for services to initialize...${NC}"
+sleep 5
+
+# Run health checks
+echo ""
+echo -e "${BLUE}Running health checks...${NC}"
+if [ -x "./scripts/health-check.sh" ]; then
+    ./scripts/health-check.sh
+    if [ $? -ne 0 ]; then
+        echo ""
+        echo -e "${RED}ERROR: Some services failed health checks.${NC}"
+        echo -e "${YELLOW}Shutting down all services...${NC}"
+        kill 0
+        exit 1
+    fi
+else
+    echo -e "${YELLOW}Warning: Health check script not found, skipping...${NC}"
+fi
 
 # Start Frontend (last, in foreground)
+echo ""
 echo -e "${BLUE}[6/6] Starting Frontend (port 5173)...${NC}"
 echo ""
 echo -e "${GREEN}=================================================="
-echo "✅ All services started successfully!"
+echo "✅ All services started and healthy!"
 echo "=================================================="
 echo ""
 echo "🌐 Access the application:"
@@ -102,6 +143,3 @@ echo -e "==================================================${NC}"
 echo ""
 
 cd frontend && npm run dev -- --host
-
-# Cleanup on exit
-trap "echo -e '\n${YELLOW}Stopping all services...${NC}'; kill 0" EXIT
