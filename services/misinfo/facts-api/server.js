@@ -112,6 +112,36 @@ app.get('/api/facts/stored', (req, res) => {
   }
 });
 
+// Alias for /api/facts/stored - for backward compatibility with integration tests
+app.get('/api/factchecks', (req, res) => {
+  try {
+    const db = getDatabase();
+    const { limit = 100, offset = 0, rating } = req.query;
+
+    let query = 'SELECT * FROM fact_checks';
+    const params = [];
+
+    if (rating) {
+      query += ' WHERE rating = ?';
+      params.push(rating);
+    }
+
+    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    params.push(parseInt(limit), parseInt(offset));
+
+    const factChecks = db.prepare(query).all(...params);
+
+    res.json({
+      success: true,
+      factChecks,
+      count: factChecks.length
+    });
+  } catch (error) {
+    console.error('Get fact-checks error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get IFCN signatories (credibility markers)
 app.get('/api/facts/ifcn-signatories', (req, res) => {
   // List of IFCN signatory domains (partial list for demo)

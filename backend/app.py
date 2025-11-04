@@ -13,6 +13,10 @@ CORS(app)
 def health():
     return jsonify({'status': 'healthy', 'message': 'Dashboard API is running'})
 
+@app.route('/health', methods=['GET'])
+def health_root():
+    return jsonify({'status': 'healthy', 'message': 'Dashboard API is running'})
+
 # Weather API endpoint
 @app.route('/api/weather', methods=['GET'])
 def get_weather():

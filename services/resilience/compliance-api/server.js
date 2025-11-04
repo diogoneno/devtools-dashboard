@@ -12,6 +12,25 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'compliance-api' });
 });
 
+// Get list of available compliance frameworks
+app.get('/api/frameworks', (req, res) => {
+  const frameworks = [
+    {
+      id: 'iso27001',
+      name: 'ISO 27001',
+      description: 'International standard for information security management systems',
+      endpoint: '/api/iso27001'
+    },
+    {
+      id: 'nist800-53',
+      name: 'NIST 800-53',
+      description: 'Security and privacy controls for information systems',
+      endpoint: '/api/nist800-53'
+    }
+  ];
+  res.json(frameworks);
+});
+
 // ISO 27001 mappings
 app.get('/api/iso27001', (req, res) => {
   const controls = [

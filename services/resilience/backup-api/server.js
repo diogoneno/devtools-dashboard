@@ -32,6 +32,7 @@ app.get('/api/kpis', (req, res) => {
 
     res.json({
       success: true,
+      totalBackups: total.count, // Added for integration test compatibility
       kpis: {
         backups: {
           total: total.count,
