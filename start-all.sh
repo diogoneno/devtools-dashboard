@@ -52,11 +52,16 @@ if [ ! -f "data/ai-safety.db" ]; then
     cd services/ai-safety && npm run init-db && cd ../..
 fi
 
+if [ ! -f "data/ai-tools.db" ]; then
+    echo -e "${YELLOW}Initializing AI Tools database...${NC}"
+    cd services/ai-tools && npm run init-db && cd ../..
+fi
+
 echo -e "${GREEN}Starting all services...${NC}"
 echo ""
 
 # Start Flask backend
-echo -e "${BLUE}[1/6] Starting Flask Backend (port 5000)...${NC}"
+echo -e "${BLUE}[1/7] Starting Flask Backend (port 5000)...${NC}"
 cd backend && python3 app.py &
 FLASK_PID=$!
 cd ..
@@ -65,7 +70,7 @@ cd ..
 sleep 2
 
 # Start Misinformation Lab services
-echo -e "${BLUE}[2/6] Starting Misinformation Lab (ports 5001-5004)...${NC}"
+echo -e "${BLUE}[2/7] Starting Misinformation Lab (ports 5001-5004)...${NC}"
 cd services/misinfo
 PORT=5001 node ingest-api/server.js &
 PORT=5002 node facts-api/server.js &
@@ -74,14 +79,14 @@ PORT=5004 node forensics-api/server.js &
 cd ../..
 
 # Start E-Portfolio services
-echo -e "${BLUE}[3/6] Starting E-Portfolio (ports 5005-5006)...${NC}"
+echo -e "${BLUE}[3/7] Starting E-Portfolio (ports 5005-5006)...${NC}"
 cd services/portfolio
 GH_INDEXER_PORT=5005 node gh-indexer/index.js &
 PORTFOLIO_API_PORT=5006 node portfolio-api/server.js &
 cd ../..
 
 # Start Cyber Resilience services
-echo -e "${BLUE}[4/6] Starting Cyber Resilience (ports 5007-5010)...${NC}"
+echo -e "${BLUE}[4/7] Starting Cyber Resilience (ports 5007-5010)...${NC}"
 cd services/resilience
 BACKUP_API_PORT=5007 node backup-api/server.js &
 RANSOMWARE_API_PORT=5008 node ransomware-api/server.js &
@@ -90,12 +95,19 @@ COMPLIANCE_API_PORT=5010 node compliance-api/server.js &
 cd ../..
 
 # Start AI Safety services
-echo -e "${BLUE}[5/6] Starting AI Safety (ports 5011-5014)...${NC}"
+echo -e "${BLUE}[5/7] Starting AI Safety (ports 5011-5014)...${NC}"
 cd services/ai-safety
 PORT=5011 node prompt-monitor-api/server.js &
 PORT=5012 node redteam-api/server.js &
 PORT=5013 node robustness-api/server.js &
 PORT=5014 node tool-gate-api/server.js &
+cd ../..
+
+# Start AI Tools services
+echo -e "${BLUE}[6/7] Starting AI Tools (ports 5015-5016)...${NC}"
+cd services/ai-tools
+RAG_PORT=5015 node rag-pipeline/server.js &
+LLM_PORT=5016 node llm-proxy/server.js &
 cd ../..
 
 # Give services time to start
@@ -121,7 +133,7 @@ fi
 
 # Start Frontend (last, in foreground)
 echo ""
-echo -e "${BLUE}[6/6] Starting Frontend (port 5173)...${NC}"
+echo -e "${BLUE}[7/7] Starting Frontend (port 5173)...${NC}"
 echo ""
 echo -e "${GREEN}=================================================="
 echo "✅ All services started and healthy!"
@@ -137,6 +149,7 @@ echo "   Misinformation Lab: http://localhost:5001-5004"
 echo "   E-Portfolio:        http://localhost:5005-5006"
 echo "   Cyber Resilience:   http://localhost:5007-5010"
 echo "   AI Safety:          http://localhost:5011-5014"
+echo "   AI Tools:           http://localhost:5015-5016"
 echo ""
 echo "Press Ctrl+C to stop all services"
 echo -e "==================================================${NC}"
