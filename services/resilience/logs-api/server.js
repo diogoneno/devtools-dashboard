@@ -1,12 +1,12 @@
 import express from 'express';
-import cors from 'cors';
+import { applySecurityMiddleware, writeRateLimiter } from '../../shared/security-middleware.js';
 import { getDatabase } from '../backup-api/init-db.js';
 
 const app = express();
 const PORT = process.env.LOGS_API_PORT || 5009;
 
-app.use(cors());
-app.use(express.json());
+// Apply security middleware (headers, CORS, rate limiting, body size limits)
+applySecurityMiddleware(app);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'logs-api' });

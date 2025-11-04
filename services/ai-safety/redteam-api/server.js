@@ -1,13 +1,13 @@
 import express from 'express';
-import cors from 'cors';
+import { applySecurityMiddleware, writeRateLimiter } from '../../shared/security-middleware.js';
 import axios from 'axios';
 import { getDatabase } from '../shared/init-db.js';
 
 const app = express();
 const PORT = process.env.PORT || 5012;
 
-app.use(cors());
-app.use(express.json());
+// Apply security middleware (headers, CORS, rate limiting, body size limits)
+applySecurityMiddleware(app);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'redteam-api' });

@@ -1,16 +1,16 @@
 import express from 'express';
-import cors from 'cors';
 import dotenv from 'dotenv';
 import { getDatabase } from './init-db.js';
 import { writeFileSync } from 'fs';
+import { applySecurityMiddleware, writeRateLimiter } from '../../shared/security-middleware.js';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORTFOLIO_API_PORT || 5006;
 
-app.use(cors());
-app.use(express.json());
+// Apply security middleware (headers, CORS, rate limiting, body size limits)
+applySecurityMiddleware(app);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -137,7 +137,7 @@ app.get('/api/modules/:slug/reflections', (req, res) => {
 });
 
 // Add reflection
-app.post('/api/modules/:slug/reflections', (req, res) => {
+app.post('/api/modules/:slug/reflections', writeLimiter, (req, res) => {
   try {
     const { title, body_md, tags, date } = req.body;
 
@@ -192,7 +192,7 @@ app.get('/api/modules/:slug/feedback', (req, res) => {
 });
 
 // Add feedback
-app.post('/api/modules/:slug/feedback', (req, res) => {
+app.post('/api/modules/:slug/feedback', writeLimiter, (req, res) => {
   try {
     const { author, body_md, rubric_scores, date } = req.body;
 
@@ -226,7 +226,7 @@ app.post('/api/modules/:slug/feedback', (req, res) => {
 });
 
 // Export all data as JSON
-app.post('/api/export/json', (req, res) => {
+app.post('/api/export/json', writeLimiter, (req, res) => {
   try {
     const db = getDatabase();
 

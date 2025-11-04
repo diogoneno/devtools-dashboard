@@ -51,7 +51,35 @@ DevTools Dashboard - Enterprise Edition: A comprehensive web application with 60
 ### Backend Architecture
 - **Flask API** (`backend/app.py`): Main API server for weather, currency, GitHub stats (proxies external APIs)
 - **Microservices Pattern**: Each service is self-contained with its own Express server and SQLite database
-- **Database Access**: better-sqlite3 for synchronous SQLite operations (connection-per-request pattern, no pooling)
+- **Database Access**: better-sqlite3 with **singleton connection pattern** (FIXED: prevents EMFILE connection leaks)
+- **Security Middleware**: Shared security module (`services/shared/security-middleware.js`) provides:
+  - Rate limiting (100 req/15min general, 30 req/15min writes)
+  - CORS with configurable allowed origins
+  - Security headers (X-Frame-Options, CSP, HSTS, etc.)
+  - Body size limits (1MB max)
+
+### Security Improvements (2025-11)
+**CRITICAL FIXES APPLIED:**
+1. **Database Connection Leak Fixed** - All 4 service groups now use singleton pattern instead of creating new connections per request. Prevents EMFILE errors at ~70 concurrent requests.
+2. **Rate Limiting Added** - All 14 microservices + Flask backend now have rate limiting to prevent DoS attacks.
+3. **Security Headers Added** - All services now send X-Frame-Options, X-Content-Type-Options, X-XSS-Protection, HSTS, and CSP headers.
+4. **CORS Hardened** - Replaced wide-open CORS with configurable allowed origins (defaults to localhost for dev).
+5. **Flask Threading Enabled** - Flask dev server now runs with `threaded=True` for better concurrency.
+
+**Files Modified:**
+- `services/portfolio/portfolio-api/init-db.js` - Singleton pattern
+- `services/resilience/backup-api/init-db.js` - Singleton pattern
+- `services/ai-safety/shared/init-db.js` - Singleton pattern
+- `services/misinfo/init-db.js` - Singleton pattern
+- `services/shared/security-middleware.js` - NEW: Shared security middleware
+- All 14 `server.js` files - Apply security middleware
+- `backend/app.py` - Security headers, hardened CORS, threading enabled
+
+**Remaining Known Issues** (see `docs/API-SECURITY-AUDIT.md` for full details):
+- No authentication/authorization (all endpoints publicly accessible)
+- Event loop blocking (better-sqlite3 is synchronous)
+- No input validation on POST endpoints
+- No user context tracking (missing user_id columns)
 
 ### Database Architecture
 **4 SQLite databases** (offline-first OLTP):

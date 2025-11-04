@@ -1,5 +1,5 @@
 import express from 'express';
-import cors from 'cors';
+import { applySecurityMiddleware, writeRateLimiter } from '../../shared/security-middleware.js';
 import { getDatabase } from '../init-db.js';
 import { fetchGDELTEvents } from './gdelt-connector.js';
 import { fetchRSSFeed } from './rss-connector.js';
@@ -7,8 +7,8 @@ import { fetchRSSFeed } from './rss-connector.js';
 const app = express();
 const PORT = process.env.INGEST_PORT || 5001;
 
-app.use(cors());
-app.use(express.json());
+// Apply security middleware (headers, CORS, rate limiting, body size limits)
+applySecurityMiddleware(app);
 
 // Health check
 app.get('/health', (req, res) => {

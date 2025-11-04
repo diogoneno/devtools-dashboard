@@ -1,13 +1,13 @@
 import express from 'express';
-import cors from 'cors';
+import { applySecurityMiddleware, writeRateLimiter } from '../../shared/security-middleware.js';
 import { extractEXIF } from './exif-extractor.js';
 import { extractOCR } from './ocr-extractor.js';
 
 const app = express();
 const PORT = process.env.FORENSICS_PORT || 5004;
 
-app.use(cors());
-app.use(express.json());
+// Apply security middleware (headers, CORS, rate limiting, body size limits)
+applySecurityMiddleware(app);
 
 // Health check
 app.get('/health', (req, res) => {
