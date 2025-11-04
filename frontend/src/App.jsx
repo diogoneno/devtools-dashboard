@@ -12,6 +12,7 @@ import MarkdownPreview from './components/DeveloperTools/MarkdownPreview';
 import CodeDiff from './components/DeveloperTools/CodeDiff';
 import HashGenerator from './components/DeveloperTools/HashGenerator';
 import QRCodeGen from './components/DeveloperTools/QRCodeGen';
+import DiffTool from './components/DeveloperTools/DiffTool';
 
 // Productivity Tools
 import UnitConverter from './components/ProductivityTools/UnitConverter';
@@ -21,6 +22,7 @@ import NoteTaker from './components/ProductivityTools/NoteTaker';
 import PasswordGenerator from './components/ProductivityTools/PasswordGenerator';
 import URLShortener from './components/ProductivityTools/URLShortener';
 import LoremIpsum from './components/ProductivityTools/LoremIpsum';
+import CronBuilder from './components/ProductivityTools/CronBuilder';
 
 // Data Tools
 import JSONToCSV from './components/DataTools/JSONToCSV';
@@ -39,6 +41,7 @@ import Weather from './components/APITools/Weather';
 import CurrencyConverter from './components/APITools/CurrencyConverter';
 import GitHubStats from './components/APITools/GitHubStats';
 import NewsFeed from './components/APITools/NewsFeed';
+import HTTPRequestBuilder from './components/APITools/HTTPRequestBuilder';
 
 // Red Team / Security Tools
 import DNSLookup from './components/RedTeamTools/DNSLookup';
@@ -50,6 +53,8 @@ import SQLInjectionTester from './components/RedTeamTools/SQLInjectionTester';
 import XSSTester from './components/RedTeamTools/XSSTester';
 import PasswordStrengthChecker from './components/RedTeamTools/PasswordStrengthChecker';
 import SSLTLSChecker from './components/RedTeamTools/SSLTLSChecker';
+import SecretScanner from './components/RedTeamTools/SecretScanner';
+import VulnerabilityScanner from './components/RedTeamTools/VulnerabilityScanner';
 
 // AI Engineering Tools
 import TokenCounter from './components/AITools/TokenCounter';
@@ -83,6 +88,7 @@ import PromptSafetyMonitor from './components/AISafetyTools/PromptSafetyMonitor'
 import LLMRedTeamHarness from './components/AISafetyTools/LLMRedTeamHarness';
 import ModelRobustnessLab from './components/AISafetyTools/ModelRobustnessLab';
 import AgentToolAccessGate from './components/AISafetyTools/AgentToolAccessGate';
+import JailbreakDetector from './components/AISafetyTools/JailbreakDetector';
 
 import './App.css';
 
@@ -103,6 +109,7 @@ function App() {
           <Route path="/code-diff" element={<CodeDiff />} />
           <Route path="/hash-generator" element={<HashGenerator />} />
           <Route path="/qr-code" element={<QRCodeGen />} />
+          <Route path="/diff-tool" element={<DiffTool />} />
 
           {/* Productivity Tools */}
           <Route path="/unit-converter" element={<UnitConverter />} />
@@ -112,6 +119,7 @@ function App() {
           <Route path="/password-generator" element={<PasswordGenerator />} />
           <Route path="/url-shortener" element={<URLShortener />} />
           <Route path="/lorem-ipsum" element={<LoremIpsum />} />
+          <Route path="/cron-builder" element={<CronBuilder />} />
 
           {/* Data Tools */}
           <Route path="/json-to-csv" element={<JSONToCSV />} />
@@ -130,6 +138,7 @@ function App() {
           <Route path="/currency-converter" element={<CurrencyConverter />} />
           <Route path="/github-stats" element={<GitHubStats />} />
           <Route path="/news" element={<NewsFeed />} />
+          <Route path="/http-request-builder" element={<HTTPRequestBuilder />} />
 
           {/* Red Team / Security Tools */}
           <Route path="/dns-lookup" element={<DNSLookup />} />
@@ -141,6 +150,8 @@ function App() {
           <Route path="/xss-tester" element={<XSSTester />} />
           <Route path="/password-strength-checker" element={<PasswordStrengthChecker />} />
           <Route path="/ssl-tls-checker" element={<SSLTLSChecker />} />
+          <Route path="/secret-scanner" element={<SecretScanner />} />
+          <Route path="/vulnerability-scanner" element={<VulnerabilityScanner />} />
 
           {/* AI Engineering Tools */}
           <Route path="/token-counter" element={<TokenCounter />} />
@@ -174,6 +185,7 @@ function App() {
           <Route path="/ai-safety/redteam-harness" element={<LLMRedTeamHarness />} />
           <Route path="/ai-safety/robustness-lab" element={<ModelRobustnessLab />} />
           <Route path="/ai-safety/tool-access-gate" element={<AgentToolAccessGate />} />
+          <Route path="/ai-safety/jailbreak-detector" element={<JailbreakDetector />} />
         </Routes>
       </Layout>
     </Router>

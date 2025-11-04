@@ -1,0 +1,21 @@
+{
+  "name": "ai-tools-services",
+  "version": "1.0.0",
+  "description": "AI Engineering tools microservices - RAG Pipeline and LLM Proxy",
+  "scripts": {
+    "init-db": "node init-db.js",
+    "dev": "concurrently \"npm run dev:rag\" \"npm run dev:llm\"",
+    "dev:rag": "cd rag-pipeline && node server.js",
+    "dev:llm": "cd llm-proxy && node server.js",
+    "test": "node rag-pipeline/server.js --check && node llm-proxy/server.js --check"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "better-sqlite3": "^11.0.0",
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
