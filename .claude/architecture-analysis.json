@@ -1,0 +1,415 @@
+{
+  "projectName": "DevTools Dashboard - Enterprise Edition",
+  "analyzedAt": "2025-11-04T22:50:00Z",
+  "repositoryPath": "/home/user/devtools-dashboard",
+  "branch": "claude/codebase-architecture-analysis-011CUoeQPdMxDiSbJZMpfFD7",
+
+  "entryPoints": [
+    {
+      "path": "frontend/src/main.jsx",
+      "type": "React",
+      "role": "Frontend application bootstrap",
+      "linesOfCode": 11
+    },
+    {
+      "path": "frontend/src/App.jsx",
+      "type": "React",
+      "role": "Main routing component (60+ routes)",
+      "linesOfCode": 196
+    },
+    {
+      "path": "backend/app.py",
+      "type": "Flask",
+      "role": "API gateway for external services",
+      "linesOfCode": 172
+    },
+    {
+      "path": "services/misinfo/ingest-api/server.js",
+      "type": "Express",
+      "role": "News ingestion microservice",
+      "linesOfCode": 200
+    },
+    {
+      "path": "services/misinfo/facts-api/server.js",
+      "type": "Express",
+      "role": "Fact-checking microservice",
+      "linesOfCode": 200
+    },
+    {
+      "path": "services/misinfo/nlp-api/server.js",
+      "type": "Express",
+      "role": "NLP analysis microservice",
+      "linesOfCode": 200
+    },
+    {
+      "path": "services/misinfo/forensics-api/server.js",
+      "type": "Express",
+      "role": "Media forensics microservice",
+      "linesOfCode": 200
+    },
+    {
+      "path": "services/portfolio/gh-indexer/server.js",
+      "type": "Express",
+      "role": "GitHub module indexer",
+      "linesOfCode": 339
+    },
+    {
+      "path": "services/portfolio/portfolio-api/server.js",
+      "type": "Express",
+      "role": "Portfolio data API",
+      "linesOfCode": 271
+    },
+    {
+      "path": "services/resilience/backup-api/server.js",
+      "type": "Express",
+      "role": "Backup monitoring API",
+      "linesOfCode": 200
+    },
+    {
+      "path": "services/resilience/ransomware-api/server.js",
+      "type": "Express",
+      "role": "Ransomware detection API",
+      "linesOfCode": 200
+    },
+    {
+      "path": "services/resilience/logs-api/server.js",
+      "type": "Express",
+      "role": "Log analysis API",
+      "linesOfCode": 200
+    },
+    {
+      "path": "services/resilience/compliance-api/server.js",
+      "type": "Express",
+      "role": "Compliance tracking API",
+      "linesOfCode": 200
+    },
+    {
+      "path": "services/ai-safety/prompt-monitor-api/server.js",
+      "type": "Express",
+      "role": "Prompt safety monitoring",
+      "linesOfCode": 200
+    },
+    {
+      "path": "services/ai-safety/redteam-api/server.js",
+      "type": "Express",
+      "role": "Red team attack simulation",
+      "linesOfCode": 200
+    },
+    {
+      "path": "services/ai-safety/robustness-api/server.js",
+      "type": "Express",
+      "role": "Model robustness testing",
+      "linesOfCode": 254
+    },
+    {
+      "path": "services/ai-safety/tool-gate-api/server.js",
+      "type": "Express",
+      "role": "Tool access control",
+      "linesOfCode": 219
+    },
+    {
+      "path": "services/ai-tools/llm-proxy/server.js",
+      "type": "Express",
+      "role": "LLM API proxy",
+      "linesOfCode": 408
+    },
+    {
+      "path": "services/ai-tools/rag-pipeline/server.js",
+      "type": "Express",
+      "role": "RAG pipeline orchestrator",
+      "linesOfCode": 402
+    }
+  ],
+
+  "dependencyGraph": {
+    "frontend": {
+      "dependencies": [
+        "react@19.1.1",
+        "react-dom@19.1.1",
+        "react-router-dom@7.9.5",
+        "vite@7.1.7",
+        "axios@1.13.1",
+        "zustand@5.0.8",
+        "vis-network@10.0.2",
+        "duckdb@1.4.1"
+      ],
+      "imports": {
+        "react": 81,
+        "axios": 23
+      }
+    },
+    "backend": {
+      "dependencies": [
+        "Flask@3.0.0",
+        "flask-cors",
+        "requests",
+        "python-dotenv"
+      ]
+    },
+    "microservices": {
+      "sharedDependencies": [
+        "express@4.x",
+        "better-sqlite3@11.x",
+        "cors@2.8.5",
+        "express-rate-limit@8.2.1"
+      ],
+      "sharedModules": [
+        "services/shared/security-middleware.js"
+      ],
+      "usageStats": {
+        "securityMiddleware": "13/17 services"
+      }
+    }
+  },
+
+  "architecturalPatterns": [
+    {
+      "name": "Microservices Architecture",
+      "evidence": "17 independent Express services on separate ports",
+      "quality": "excellent",
+      "files": ["services/*/server.js"]
+    },
+    {
+      "name": "API Gateway Pattern",
+      "evidence": "Flask backend proxies external APIs",
+      "quality": "good",
+      "files": ["backend/app.py"]
+    },
+    {
+      "name": "Repository/DAO Pattern",
+      "evidence": "init-db.js modules provide data access abstraction",
+      "quality": "good",
+      "files": ["services/*/init-db.js"]
+    },
+    {
+      "name": "Singleton Pattern",
+      "evidence": "Database connections use singleton pattern",
+      "quality": "excellent",
+      "note": "Fixed Nov 2025 to prevent connection leaks",
+      "files": ["services/*/init-db.js"]
+    },
+    {
+      "name": "Middleware Chain Pattern",
+      "evidence": "Express middleware for security controls",
+      "quality": "good",
+      "files": ["services/shared/security-middleware.js"]
+    },
+    {
+      "name": "RESTful API Pattern",
+      "evidence": "95 REST endpoints across 21 services",
+      "quality": "good"
+    },
+    {
+      "name": "Component-Based UI Pattern",
+      "evidence": "70+ React functional components",
+      "quality": "excellent"
+    },
+    {
+      "name": "Hooks Pattern (React)",
+      "evidence": "407 React hook usages",
+      "quality": "excellent"
+    }
+  ],
+
+  "technicalDebt": [
+    {
+      "type": "TODO/FIXME Comments",
+      "count": 21,
+      "severity": "low",
+      "files": 13
+    },
+    {
+      "type": "Console Statements (Production)",
+      "count": 101,
+      "severity": "medium",
+      "recommendation": "Replace with structured logging framework"
+    },
+    {
+      "type": "Large Files (>500 LOC)",
+      "count": 6,
+      "severity": "medium",
+      "files": [
+        "HTTPRequestBuilder.jsx (817)",
+        "VulnerabilityScanner.jsx (687)",
+        "SecretScanner.jsx (652)",
+        "CronBuilder.jsx (571)",
+        "JailbreakDetector.jsx (565)",
+        "DiffTool.jsx (500)"
+      ]
+    },
+    {
+      "type": "God Object",
+      "severity": "medium",
+      "description": "App.jsx imports 91 components (196 LOC)",
+      "files": ["frontend/src/App.jsx"]
+    },
+    {
+      "type": "No Authentication",
+      "severity": "critical",
+      "description": "All 95 API endpoints publicly accessible",
+      "impact": "Data exposure, abuse, compliance risk"
+    },
+    {
+      "type": "Inconsistent Security",
+      "severity": "medium",
+      "description": "4/17 services don't use shared security middleware",
+      "files": [
+        "portfolio/gh-indexer",
+        "ai-tools/llm-proxy",
+        "ai-tools/rag-pipeline"
+      ]
+    }
+  ],
+
+  "recommendations": [
+    {
+      "priority": "P0 - Critical",
+      "title": "Implement Authentication",
+      "effort": "1 week",
+      "impact": "Prevents data exposure and abuse",
+      "actions": [
+        "Add JWT-based auth to all microservices",
+        "Create user context middleware",
+        "Implement role-based access control"
+      ]
+    },
+    {
+      "priority": "P1 - High",
+      "title": "Add Unit Tests",
+      "effort": "1-2 weeks",
+      "impact": "Reduces regression risk",
+      "actions": [
+        "Target 60% code coverage",
+        "Use Jest for frontend, Mocha for backend",
+        "Focus on API endpoints and data transformations"
+      ]
+    },
+    {
+      "priority": "P1 - High",
+      "title": "Apply Security Middleware Universally",
+      "effort": "4 hours",
+      "impact": "Consistent security posture",
+      "actions": [
+        "Add to: gh-indexer, llm-proxy, rag-pipeline",
+        "Verify rate limiting works on all services"
+      ]
+    },
+    {
+      "priority": "P2 - Medium",
+      "title": "Replace Console Logging",
+      "effort": "3 days",
+      "impact": "Better observability and debugging",
+      "actions": [
+        "Install winston or pino",
+        "Add structured logging with levels",
+        "Include request correlation IDs"
+      ]
+    },
+    {
+      "priority": "P2 - Medium",
+      "title": "Refactor Large Components",
+      "effort": "2 weeks",
+      "impact": "Improved maintainability",
+      "actions": [
+        "Split 6 components over 500 LOC",
+        "Extract custom hooks for shared logic",
+        "Use React.lazy() for code splitting"
+      ]
+    },
+    {
+      "priority": "P3 - Low",
+      "title": "Add API Documentation",
+      "effort": "1 week",
+      "impact": "Easier onboarding and integration",
+      "actions": [
+        "Generate OpenAPI/Swagger specs",
+        "Document all 95 endpoints",
+        "Include request/response examples"
+      ]
+    },
+    {
+      "priority": "Strategic",
+      "title": "Migrate to Async Database",
+      "effort": "1-2 months",
+      "impact": "Improved throughput under load",
+      "actions": [
+        "Consider PostgreSQL with node-postgres",
+        "Unblocks Node.js event loop",
+        "Improves concurrent request handling"
+      ]
+    }
+  ],
+
+  "metrics": {
+    "totalFiles": 112,
+    "linesOfCode": 18485,
+    "languages": {
+      "JavaScript/JSX": 110,
+      "Python": 2,
+      "TypeScript": 0
+    },
+    "components": {
+      "frontend": 70,
+      "microservices": 17,
+      "databases": 4
+    },
+    "endpoints": {
+      "rest": 95,
+      "health": 18
+    },
+    "testCoverage": "<10%",
+    "largestFiles": {
+      "max": 817,
+      "over500LOC": 6,
+      "over400LOC": 10
+    },
+    "dependencies": {
+      "totalPackages": "~50 unique",
+      "reactVersion": "19.1.1",
+      "nodeVersion": "20+",
+      "expressVersion": "4.x"
+    },
+    "securityMetrics": {
+      "rateLimit": "13/17 services",
+      "authentication": "0/18 services",
+      "inputValidation": "partial"
+    },
+    "qualityScores": {
+      "testCoverage": "2/10",
+      "documentation": "6/10",
+      "codeOrganization": "7/10",
+      "security": "4/10",
+      "observability": "2/10",
+      "maintainability": "7/10",
+      "performance": "6/10",
+      "dependencyHealth": "5/10",
+      "overall": "5.6/10"
+    },
+    "toolCallsUsed": 45,
+    "analysisPhases": 5,
+    "analysisTimeSeconds": 900
+  },
+
+  "summary": {
+    "architecturalStyle": "Microservices + SPA (3-Tier)",
+    "primaryLanguage": "JavaScript (ES6 Modules)",
+    "frameworkStack": "React 19 + Vite 7 + Express 4 + Flask 3",
+    "databaseStrategy": "Offline-first SQLite (4 databases)",
+    "strengths": [
+      "Modern technology stack",
+      "Clean architectural patterns",
+      "Recent security improvements (Nov 2025)",
+      "No circular dependencies",
+      "Functional programming style"
+    ],
+    "weaknesses": [
+      "No authentication/authorization (critical)",
+      "Minimal test coverage (<10%)",
+      "Synchronous database operations",
+      "Limited observability",
+      "Some large component files"
+    ],
+    "overallHealth": "B- (7.0/10)",
+    "productionReadiness": "Not ready - Requires auth, tests, and observability"
+  }
+}
