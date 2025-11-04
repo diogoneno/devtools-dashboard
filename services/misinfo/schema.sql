@@ -1,9 +1,14 @@
 -- Misinformation Lab Database Schema
 -- SQLite database for storing ingested items, claims, fact-checks, and analysis
+-- NOTE: user_id references users.id from auth.db (enforced at application layer)
+
+PRAGMA journal_mode = WAL;
+PRAGMA foreign_keys = ON;
 
 -- Items from various sources (news, social, etc.)
 CREATE TABLE IF NOT EXISTS items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,          -- User who ingested this item (references auth.users.id)
     source TEXT NOT NULL,              -- 'gdelt', 'rss', 'mastodon', 'youtube', etc.
     url TEXT,
     title TEXT,
@@ -14,9 +19,10 @@ CREATE TABLE IF NOT EXISTS items (
     media_type TEXT DEFAULT 'text',    -- 'text', 'video', 'image', 'audio'
     raw TEXT,                          -- JSON of original data
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(source, url)
+    UNIQUE(user_id, source, url)       -- URL unique per user per source
 );
 
+CREATE INDEX IF NOT EXISTS idx_items_user_id ON items(user_id);
 CREATE INDEX IF NOT EXISTS idx_items_source ON items(source);
 CREATE INDEX IF NOT EXISTS idx_items_published ON items(published_at);
 CREATE INDEX IF NOT EXISTS idx_items_created ON items(created_at);
@@ -24,6 +30,7 @@ CREATE INDEX IF NOT EXISTS idx_items_created ON items(created_at);
 -- Extracted claims from items
 CREATE TABLE IF NOT EXISTS claims (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,          -- User who extracted this claim (references auth.users.id)
     item_id INTEGER,
     text TEXT NOT NULL,
     spans TEXT,                        -- JSON: [{start, end, label}]
@@ -32,11 +39,13 @@ CREATE TABLE IF NOT EXISTS claims (
     FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
 );
 
+CREATE INDEX IF NOT EXISTS idx_claims_user_id ON claims(user_id);
 CREATE INDEX IF NOT EXISTS idx_claims_item ON claims(item_id);
 
 -- Fact-checks from various sources
 CREATE TABLE IF NOT EXISTS fact_checks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,          -- User who added this fact-check (references auth.users.id)
     claim_text TEXT NOT NULL,
     publisher TEXT,
     url TEXT,
@@ -44,9 +53,10 @@ CREATE TABLE IF NOT EXISTS fact_checks (
     reviewed_at TEXT,
     schema_raw TEXT,                   -- JSON of ClaimReview schema
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(url)
+    UNIQUE(user_id, url)               -- URL unique per user
 );
 
+CREATE INDEX IF NOT EXISTS idx_factchecks_user_id ON fact_checks(user_id);
 CREATE INDEX IF NOT EXISTS idx_factchecks_rating ON fact_checks(rating);
 CREATE INDEX IF NOT EXISTS idx_factchecks_publisher ON fact_checks(publisher);
 
@@ -83,6 +93,7 @@ CREATE INDEX IF NOT EXISTS idx_edges_dst ON edges(dst_url);
 -- User-defined policies for filtering and control
 CREATE TABLE IF NOT EXISTS policies (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,          -- Owner of this policy (references auth.users.id)
     name TEXT NOT NULL,
     json TEXT NOT NULL,                -- JSON policy definition
     active INTEGER DEFAULT 1,
@@ -93,9 +104,14 @@ CREATE TABLE IF NOT EXISTS policies (
 -- Curated datasets for reproducibility
 CREATE TABLE IF NOT EXISTS datasets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
+    user_id INTEGER NOT NULL,          -- Owner of this dataset (references auth.users.id)
+    name TEXT NOT NULL,
     description TEXT,
     path TEXT,                         -- Path to parquet/CSV files
     rows INTEGER,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, name)              -- Dataset name unique per user
 );
+
+CREATE INDEX IF NOT EXISTS idx_datasets_user_id ON datasets(user_id);
+CREATE INDEX IF NOT EXISTS idx_policies_user_id ON policies(user_id);

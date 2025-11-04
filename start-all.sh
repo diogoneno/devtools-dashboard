@@ -57,11 +57,24 @@ if [ ! -f "data/ai-tools.db" ]; then
     cd services/ai-tools && npm run init-db && cd ../..
 fi
 
+if [ ! -f "data/auth.db" ]; then
+    echo -e "${YELLOW}Initializing Authentication database...${NC}"
+    cd services/auth && npm run init-db && cd ../..
+fi
+
 echo -e "${GREEN}Starting all services...${NC}"
 echo ""
 
+# Start Auth service FIRST (other services may depend on it)
+echo -e "${BLUE}[1/8] Starting Authentication Service (port 5017)...${NC}"
+cd services/auth && AUTH_API_PORT=5017 node auth-api/server.js &
+cd ../..
+
+# Give auth service a moment to start
+sleep 2
+
 # Start Flask backend
-echo -e "${BLUE}[1/7] Starting Flask Backend (port 5000)...${NC}"
+echo -e "${BLUE}[2/8] Starting Flask Backend (port 5000)...${NC}"
 cd backend && python3 app.py &
 FLASK_PID=$!
 cd ..
@@ -70,7 +83,7 @@ cd ..
 sleep 2
 
 # Start Misinformation Lab services
-echo -e "${BLUE}[2/7] Starting Misinformation Lab (ports 5001-5004)...${NC}"
+echo -e "${BLUE}[3/8] Starting Misinformation Lab (ports 5001-5004)...${NC}"
 cd services/misinfo
 PORT=5001 node ingest-api/server.js &
 PORT=5002 node facts-api/server.js &
@@ -79,14 +92,14 @@ PORT=5004 node forensics-api/server.js &
 cd ../..
 
 # Start E-Portfolio services
-echo -e "${BLUE}[3/7] Starting E-Portfolio (ports 5005-5006)...${NC}"
+echo -e "${BLUE}[4/8] Starting E-Portfolio (ports 5005-5006)...${NC}"
 cd services/portfolio
 GH_INDEXER_PORT=5005 node gh-indexer/index.js &
 PORTFOLIO_API_PORT=5006 node portfolio-api/server.js &
 cd ../..
 
 # Start Cyber Resilience services
-echo -e "${BLUE}[4/7] Starting Cyber Resilience (ports 5007-5010)...${NC}"
+echo -e "${BLUE}[5/8] Starting Cyber Resilience (ports 5007-5010)...${NC}"
 cd services/resilience
 BACKUP_API_PORT=5007 node backup-api/server.js &
 RANSOMWARE_API_PORT=5008 node ransomware-api/server.js &
@@ -95,7 +108,7 @@ COMPLIANCE_API_PORT=5010 node compliance-api/server.js &
 cd ../..
 
 # Start AI Safety services
-echo -e "${BLUE}[5/7] Starting AI Safety (ports 5011-5014)...${NC}"
+echo -e "${BLUE}[6/8] Starting AI Safety (ports 5011-5014)...${NC}"
 cd services/ai-safety
 PORT=5011 node prompt-monitor-api/server.js &
 PORT=5012 node redteam-api/server.js &
@@ -104,7 +117,7 @@ PORT=5014 node tool-gate-api/server.js &
 cd ../..
 
 # Start AI Tools services
-echo -e "${BLUE}[6/7] Starting AI Tools (ports 5015-5016)...${NC}"
+echo -e "${BLUE}[7/8] Starting AI Tools (ports 5015-5016)...${NC}"
 cd services/ai-tools
 RAG_PORT=5015 node rag-pipeline/server.js &
 LLM_PORT=5016 node llm-proxy/server.js &
@@ -133,7 +146,7 @@ fi
 
 # Start Frontend (last, in foreground)
 echo ""
-echo -e "${BLUE}[7/7] Starting Frontend (port 5173)...${NC}"
+echo -e "${BLUE}[8/8] Starting Frontend (port 5173)...${NC}"
 echo ""
 echo -e "${GREEN}=================================================="
 echo "✅ All services started and healthy!"
@@ -144,6 +157,7 @@ echo "   Local:   http://localhost:5173"
 echo "   Network: http://$(hostname -I | awk '{print $1}'):5173"
 echo ""
 echo "📊 Backend Services:"
+echo "   Authentication:     http://localhost:5017"
 echo "   Flask API:          http://localhost:5000"
 echo "   Misinformation Lab: http://localhost:5001-5004"
 echo "   E-Portfolio:        http://localhost:5005-5006"

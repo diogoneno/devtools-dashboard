@@ -10,6 +10,7 @@
 
 import rateLimit from 'express-rate-limit';
 import cors from 'cors';
+import express from 'express';
 
 /**
  * Security headers middleware to prevent common web vulnerabilities.
