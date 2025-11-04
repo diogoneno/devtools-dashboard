@@ -1,0 +1,11 @@
+{
+  "name": "devtools-shared",
+  "version": "1.0.0",
+  "description": "Shared middleware and utilities for DevTools Dashboard microservices",
+  "type": "module",
+  "dependencies": {
+    "express-rate-limit": "^7.1.5",
+    "cors": "^2.8.5",
+    "jsonwebtoken": "^9.0.2"
+  }
+}
