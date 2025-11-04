@@ -8,8 +8,18 @@ DevTools Dashboard - Enterprise Edition: A comprehensive web application with 60
 
 ## Architecture
 
+### Technology Stack
+- **Frontend**: React 19.1.1 + Vite 7.1.7 + React Router 7.9.5 (requires Node.js 20+)
+- **Backend**: Flask 3.0.0 + Python 3.8+
+- **Microservices**: Node.js 20+ + Express 4.x
+- **Database**: better-sqlite3 11.x (synchronous SQLite operations)
+- **State Management**: Zustand 5.0.8
+- **HTTP Client**: Axios 1.13.1
+- **Process Manager**: PM2 (production)
+- **Reverse Proxy**: nginx (production)
+
 ### Monorepo Structure
-- **Frontend**: React 18 + Vite SPA (port 5173)
+- **Frontend**: React 19 + Vite 7 SPA (port 5173)
 - **Backend**: Flask API server (port 5000)
 - **Microservices**: 14 Node.js/Express services (ports 5001-5014)
   - Misinformation Lab: 4 services (ports 5001-5004)
@@ -18,27 +28,46 @@ DevTools Dashboard - Enterprise Edition: A comprehensive web application with 60
   - AI Safety: 4 services (ports 5011-5014)
 - **Databases**: SQLite for offline-first OLTP storage (`misinfo.db`, `portfolio.db`, `resilience.db`, `ai-safety.db`)
 
-### Frontend Architecture
-- **Routing**: React Router v6 with component-based routes in `src/App.jsx`
-- **Component Organization**: Tools organized by category in `src/components/`:
-  - `DeveloperTools/` - JSON formatter, Base64, Regex tester, JWT decoder, etc.
+### Frontend Architecture (60+ Components)
+- **Routing**: React Router v7 with component-based routes in `src/App.jsx`
+- **Component Organization**: 60+ tools organized by category in `src/components/`:
+  - `DeveloperTools/` - JSON formatter, Base64, Regex tester, JWT decoder, Hash generator, QR code
   - `ProductivityTools/` - Calculator, unit converter, timer, password generator
-  - `AITools/` - Token counter, prompt builder, model cost calculator
-  - `MisinfoTools/` - News ingest, fact-checker, propagation graphs
-  - `ResilienceTools/` - Backup monitoring, ransomware detection, compliance
-  - `AISafetyTools/` - Prompt safety, red team harness, robustness testing
-  - `RedTeamTools/` - DNS lookup, subdomain finder, security headers checker
-- **State Management**: Zustand for global state
+  - `DataTools/` - CSV converter, chart builder, UUID generator, timestamp converter
+  - `CreativeTools/` - Image placeholder, ASCII art, random user generator
+  - `APITools/` - Weather, currency converter, GitHub stats, news feed
+  - `RedTeamTools/` - DNS lookup, subdomain finder, security headers, SQL/XSS testers
+  - `AITools/` - Token counter, prompt builder, model cost calculator (7 tools)
+  - `MisinfoTools/` - News ingest, fact-checker, propagation graphs (7 tools)
+  - `ResilienceTools/` - Backup monitoring, ransomware detection, compliance (3 tools)
+  - `AISafetyTools/` - Prompt safety, red team harness, robustness, tool gate (4 tools)
+  - `apps/portfolio/` - E-Portfolio application (module discovery, outcomes tracking)
+- **State Management**: Zustand for global state (minimal usage)
 - **HTTP Client**: Axios for API calls
 - **Styling**: Custom CSS (no framework), shared `ToolLayout.css` for consistency
-- **Charts**: vis-network for graph visualizations
+- **Charts**: vis-network 10.x for graph visualizations
+- **Client-side SQL**: DuckDB 1.4.1 for local queries
 
 ### Backend Architecture
-- **Flask API** (`backend/app.py`): Main API server for weather, currency, and basic utilities
+- **Flask API** (`backend/app.py`): Main API server for weather, currency, GitHub stats (proxies external APIs)
 - **Microservices Pattern**: Each service is self-contained with its own Express server and SQLite database
-- **Database Access**: better-sqlite3 for synchronous SQLite operations
+- **Database Access**: better-sqlite3 for synchronous SQLite operations (connection-per-request pattern, no pooling)
+
+### Database Architecture
+**4 SQLite databases** (offline-first OLTP):
+1. **`misinfo.db`** - News items, claims, fact-checks, NLP scores, propagation graphs
+2. **`portfolio.db`** - GitHub modules, artifacts, reflections, outcomes, feedback
+3. **`resilience.db`** - Backups, restores, canaries, logs, compliance evidence, DR scenarios
+4. **`ai-safety.db`** - Prompt scores, attack recipes, robustness tests, tool access policies
+
+**Pattern**: Each service group has `schema.sql` and `init-db.js` for database initialization.
 
 ## Common Commands
+
+### Prerequisites
+- **Node.js 20+** (required by Vite 7 and React Router 7)
+- Python 3.8+
+- npm or yarn
 
 ### Starting the Application
 ```bash
@@ -62,18 +91,19 @@ npm install                                   # Install dependencies
 npm run dev                                   # Start dev server with HMR
 npm run build                                 # Production build
 npm run preview                               # Preview production build
-npm run lint                                  # Run ESLint
+npm run lint                                  # Run ESLint with React hooks plugin
 
 # Backend (Flask)
 cd backend
 pip install -r requirements.txt               # Install dependencies
 python3 app.py                                # Start Flask server
 
-# Microservices
+# Microservices (per service group)
 cd services/<service-name>
 npm install                                   # Install dependencies
 npm run init-db                               # Initialize SQLite database
 npm run dev                                   # Start all service APIs with concurrently
+npm test                                      # Syntax check on server files
 ```
 
 ### Database Initialization
@@ -85,16 +115,41 @@ cd services/resilience && npm run init-db
 cd services/ai-safety && npm run init-db
 ```
 
-### Testing Services
+### Testing
 ```bash
-# Health check endpoints
-curl http://localhost:5000/api/health         # Flask API
-curl http://localhost:5007/health             # Backup API
-curl http://localhost:5011/health             # Prompt Monitor API
-curl http://localhost:5012/health             # Red Team API
+# Integration tests (requires all services running)
+./scripts/test-integration.sh init           # Initialize test databases
+./scripts/test-integration.sh run            # Run full test suite (23 tests)
+
+# Health checks
+./scripts/health-check.sh                    # Test all 15 services
+
+# Check port availability
+./scripts/check-ports.sh                     # Verify ports 5000-5014, 5173 are free
+
+# Individual service health checks
+curl http://localhost:5000/health            # Flask API
+curl http://localhost:5007/health            # Backup API
+curl http://localhost:5011/health            # Prompt Monitor API
 ```
 
+### CI/CD
+See `docs/CI-CD.md` for complete pipeline documentation.
+- Automatic testing on push to main
+- 5-stage pipeline with parallel microservice testing
+- Automatic deployment with rollback on failure
+- Health checks validate deployments
+
 ## Development Guidelines
+
+### Code Documentation Standards
+All JavaScript/Node.js code must follow JSDoc standards in `docs/JSDOC-STYLE-GUIDE.md`:
+- Document the **WHY**, not just the WHAT
+- Include realistic examples that can be copy-pasted
+- Document all error conditions with `@throws`
+- Performance notes for slow operations
+- API limitations (rate limits, quotas)
+- See `services/*/init-db.js` for reference implementations
 
 ### Adding a New Tool Component
 1. Create component in appropriate category folder (e.g., `src/components/DeveloperTools/MyTool.jsx`)
@@ -102,15 +157,17 @@ curl http://localhost:5012/health             # Red Team API
 3. Add route in `<Routes>` section of `App.jsx`
 4. Add navigation link in `src/components/Layout/Layout.jsx`
 5. Use shared `ToolLayout.css` for consistent styling
+6. Document all exported functions with JSDoc
 
 ### Creating a New Microservice
 1. Create service directory under `services/<service-name>/`
 2. Add `package.json` with Express and better-sqlite3
 3. Create `schema.sql` for database schema
-4. Create `init-db.js` to initialize SQLite database
+4. Create `init-db.js` to initialize SQLite database (with JSDoc following style guide)
 5. Implement REST endpoints in `<api-name>/server.js`
-6. Add startup script in `package.json`
-7. Update `start-all.sh` to include new service
+6. Add health check endpoint: `app.get('/health', ...)`
+7. Add startup script in `package.json`
+8. Update `start-all.sh` to include new service
 
 ### Frontend API Calls
 - Environment variables: Use `VITE_` prefix for client-exposed vars
@@ -121,12 +178,34 @@ curl http://localhost:5012/health             # Red Team API
 ### Database Schema Changes
 1. Update `schema.sql` in the service directory
 2. Run `npm run init-db` to recreate database (dev only)
-3. For production, write migration scripts
+3. For production, write migration scripts (no automatic migrations)
+
+### API Endpoint Conventions
+All microservices follow this pattern:
+```javascript
+// Health check (required)
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', service: 'service-name' });
+});
+
+// REST endpoints under /api/
+app.get('/api/resource', ...)
+app.post('/api/resource', ...)
+
+// Error handling pattern
+try {
+  // Database operation
+  res.json({ success: true, data });
+} catch (error) {
+  console.error('Error:', error);
+  res.status(500).json({ error: error.message });
+}
+```
 
 ## Key Files
 
 ### Frontend
-- `src/App.jsx` - Main routing and component imports
+- `src/App.jsx` - Main routing and component imports (183 lines, 60+ routes)
 - `src/components/Layout/Layout.jsx` - Navigation sidebar and layout
 - `vite.config.js` - Vite configuration (ports, build settings)
 - `package.json` - Dependencies and scripts
@@ -135,13 +214,22 @@ curl http://localhost:5012/health             # Red Team API
 - `backend/app.py` - Flask API server with weather, currency endpoints
 - `services/*/package.json` - Service dependencies and startup scripts
 - `services/*/schema.sql` - Database schemas
-- `services/*/init-db.js` - Database initialization scripts
+- `services/*/init-db.js` - Database initialization scripts (see JSDoc style guide)
 - `services/*/<api-name>/server.js` - Express API servers
 
 ### Infrastructure
-- `start-all.sh` - Orchestrates startup of all 15 services
-- `deploy-production.sh` - Production deployment script
+- `start-all.sh` - Orchestrates startup of all 15 services (auto-init DBs, health checks)
+- `deploy-production.sh` - Production deployment script (generates PM2 config)
+- `.github/workflows/deploy.yml` - CI/CD pipeline (5 jobs, automatic rollback)
+- `scripts/test-integration.sh` - Integration test suite (23 tests)
+- `scripts/health-check.sh` - Health check script (15 services)
+- `scripts/check-ports.sh` - Port availability checker
 - `.gitignore` - Excludes node_modules, .env, *.db files
+
+### Documentation
+- `docs/JSDOC-STYLE-GUIDE.md` - **REQUIRED reading** for all contributors
+- `docs/CI-CD.md` - GitHub Actions pipeline with automatic rollback (600+ lines)
+- `docs/DEPLOYMENT.md` - Production deployment procedures with nginx setup
 
 ## Environment Configuration
 
@@ -157,6 +245,7 @@ curl http://localhost:5012/health             # Red Team API
 ### Microservices
 - Each service can have `.env` for configuration
 - GitHub mode for portfolio: `GITHUB_MODE=single-repo` or `org-wide`
+- Port configuration uses env vars with defaults (e.g., `PORT || 5001`)
 
 ## Port Allocation
 
@@ -180,10 +269,60 @@ npm run build                                 # Creates frontend/dist/
 ./deploy-production.sh                        # Automated production deployment
 ```
 
-- Builds frontend to `dist/`
-- Configure reverse proxy (nginx/Apache) to serve static files
-- Point API routes to backend services (ports 5000-5014)
-- Use PM2 or systemd for service management
+**What it does:**
+1. Install all frontend/backend/service dependencies
+2. Build frontend (uses `.env.production`)
+3. Initialize databases (if not exist)
+4. Create PM2 `ecosystem.config.js` (15 processes)
+5. Check port availability
+6. Start all services with PM2
+7. Run health checks
+
+### PM2 Process Management
+Production uses PM2 with 15 processes:
+- `flask-backend` (port 5000)
+- `misinfo-*` services (4 processes, ports 5001-5004)
+- `portfolio-*` services (2 processes, ports 5005-5006)
+- `resilience-*` services (4 processes, ports 5007-5010)
+- `ai-safety-*` services (4 processes, ports 5011-5014)
+
+### Nginx Reverse Proxy
+Configure reverse proxy (nginx/Apache) to:
+- Serve static files from `frontend/dist/`
+- Proxy `/api/` to Flask backend (port 5000)
+- Proxy `/api/misinfo/*` to ports 5001-5004
+- Proxy `/api/portfolio/*` to ports 5005-5006
+- Proxy `/api/resilience/*` to ports 5007-5010
+- Proxy `/api/ai-safety/*` to ports 5011-5014
+
+See `config/nginx/devtools.conf` for production nginx configuration.
+
+## Troubleshooting
+
+### Port Conflicts
+```bash
+./scripts/check-ports.sh                     # Check if ports are available
+lsof -i :5000                                # Check what's using a port
+```
+
+### Service Not Starting
+```bash
+pm2 logs <service-name>                      # View PM2 logs
+pm2 status                                   # Check service status
+./scripts/health-check.sh                    # Test health endpoints
+```
+
+### Database Issues
+```bash
+cd services/<service-group>
+npm run init-db                              # Reinitialize database
+ls -la ../../data/*.db                       # Check database files exist
+```
+
+### Frontend Build Errors
+- Ensure Node.js 20+ is installed (`node --version`)
+- Clear cache: `rm -rf node_modules package-lock.json && npm install`
+- Check for ESLint errors: `npm run lint`
 
 ## Security & Ethics
 
