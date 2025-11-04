@@ -155,36 +155,35 @@ jobs:
       - name: Start all services in background
         run: |
           # Start backend
-          cd backend && python3 app.py > backend.log 2>&1 &
+          cd $GITHUB_WORKSPACE/backend
+          python3 app.py > backend.log 2>&1 &
           echo $! > backend.pid
-          cd ..
 
-          # Start microservices
-          cd services/misinfo
+          # Start microservices - Misinformation Lab
+          cd $GITHUB_WORKSPACE/services/misinfo
           PORT=5001 node ingest-api/server.js > ingest.log 2>&1 &
           PORT=5002 node facts-api/server.js > facts.log 2>&1 &
           PORT=5003 node nlp-api/server.js > nlp.log 2>&1 &
           PORT=5004 node forensics-api/server.js > forensics.log 2>&1 &
-          cd ../..
 
-          cd services/portfolio
+          # Start microservices - Portfolio
+          cd $GITHUB_WORKSPACE/services/portfolio
           GH_INDEXER_PORT=5005 node gh-indexer/index.js > indexer.log 2>&1 &
           PORTFOLIO_API_PORT=5006 node portfolio-api/server.js > portfolio.log 2>&1 &
-          cd ../..
 
-          cd services/resilience
+          # Start microservices - Resilience
+          cd $GITHUB_WORKSPACE/services/resilience
           BACKUP_API_PORT=5007 node backup-api/server.js > backup.log 2>&1 &
           RANSOMWARE_API_PORT=5008 node ransomware-api/server.js > ransomware.log 2>&1 &
           LOGS_API_PORT=5009 node logs-api/server.js > logs.log 2>&1 &
           COMPLIANCE_API_PORT=5010 node compliance-api/server.js > compliance.log 2>&1 &
-          cd ../..
 
-          cd services/ai-safety
+          # Start microservices - AI Safety
+          cd $GITHUB_WORKSPACE/services/ai-safety
           PORT=5011 node prompt-monitor-api/server.js > prompt.log 2>&1 &
           PORT=5012 node redteam-api/server.js > redteam.log 2>&1 &
           PORT=5013 node robustness-api/server.js > robustness.log 2>&1 &
           PORT=5014 node tool-gate-api/server.js > toolgate.log 2>&1 &
-          cd ../..
 
           # Wait for services to start
           sleep 10
