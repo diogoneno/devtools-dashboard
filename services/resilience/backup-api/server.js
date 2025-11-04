@@ -1,12 +1,12 @@
 import express from 'express';
-import cors from 'cors';
 import { getDatabase } from './init-db.js';
+import { applySecurityMiddleware, writeRateLimiter } from '../../shared/security-middleware.js';
 
 const app = express();
 const PORT = process.env.BACKUP_API_PORT || 5007;
 
-app.use(cors());
-app.use(express.json());
+// Apply security middleware (headers, CORS, rate limiting, body size limits)
+applySecurityMiddleware(app);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'backup-api' });

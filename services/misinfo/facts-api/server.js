@@ -1,5 +1,5 @@
 import express from 'express';
-import cors from 'cors';
+import { applySecurityMiddleware, writeRateLimiter } from '../../shared/security-middleware.js';
 import dotenv from 'dotenv';
 import { getDatabase } from '../init-db.js';
 import { searchFactChecks, parseClaimReview } from './factcheck-connector.js';
@@ -9,8 +9,8 @@ dotenv.config();
 const app = express();
 const PORT = process.env.FACTS_PORT || 5002;
 
-app.use(cors());
-app.use(express.json());
+// Apply security middleware (headers, CORS, rate limiting, body size limits)
+applySecurityMiddleware(app);
 
 // Health check
 app.get('/health', (req, res) => {

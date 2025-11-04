@@ -1,5 +1,5 @@
 import express from 'express';
-import cors from 'cors';
+import { applySecurityMiddleware, writeRateLimiter } from '../../shared/security-middleware.js';
 import dotenv from 'dotenv';
 import { getDatabase } from '../init-db.js';
 import { extractClaims } from './claim-extractor.js';

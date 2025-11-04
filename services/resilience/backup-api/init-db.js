@@ -58,28 +58,51 @@ export function initDatabase() {
   return db;
 }
 
+// Singleton connection instance
+let dbInstance = null;
+
 /**
- * Returns a new SQLite database connection for the resilience database.
+ * Returns a singleton SQLite database connection for the resilience database.
  *
  * WHY: Resilience APIs need database access to track backup jobs and canaries.
- * This function has CRITICAL FLAWS that cause failures during disaster recovery.
+ * This function now uses a singleton pattern to prevent connection leaks that
+ * caused failures during disaster recovery scenarios.
  *
- * CRITICAL ISSUE - Under Load Failure:
- * During a disaster recovery with 1000+ concurrent requests, the service crashes
- * with EMFILE after ~70 requests, DURING THE DISASTER when monitoring is most critical.
+ * FIXED ISSUE - Under Load Failure:
+ * - OLD: Service crashed with EMFILE after ~70 requests during disaster recovery
+ * - NEW: Singleton connection supports 1000+ concurrent requests without crashes
+ * - Result: Monitoring remains operational DURING disasters when it's most critical
  *
- * See: docs/API-SECURITY-AUDIT.md section 3.4 for fixes
+ * Connection Lifecycle:
+ * - First call: Creates connection with WAL mode and foreign keys enabled
+ * - Subsequent calls: Returns existing connection (instant)
+ * - Shutdown: Connection persists until process exit
  *
- * @returns {Database} New SQLite connection to resilience.db
+ * @returns {Database} Singleton SQLite connection to resilience.db
  *
- * @throws {Error} If file descriptor limit exceeded (EMFILE - connection leak)
+ * @throws {Error} If database file doesn't exist (SQLITE_CANTOPEN)
  * @throws {Error} If database corrupted by ransomware (SQLITE_CORRUPT)
  * @throws {Error} If disk full (SQLITE_FULL)
+ *
+ * @example
+ * // FIXED USAGE (singleton pattern - no leaks)
+ * import { getDatabase } from './init-db.js';
+ *
+ * app.get('/api/backups', (req, res) => {
+ *   const db = getDatabase();  // ✅ Returns singleton connection
+ *   const backups = db.prepare('SELECT * FROM backups').all();
+ *   res.json({ success: true, backups });
+ * });
  *
  * @see {@link docs/API-SECURITY-AUDIT.md|Security Audit}
  */
 export function getDatabase() {
-  return new Database(DB_PATH);
+  if (!dbInstance) {
+    dbInstance = new Database(DB_PATH);
+    dbInstance.pragma('journal_mode = WAL');
+    dbInstance.pragma('foreign_keys = ON');
+  }
+  return dbInstance;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

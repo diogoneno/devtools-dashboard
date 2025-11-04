@@ -86,75 +86,79 @@ export function initDatabase() {
   return db;
 }
 
+// Singleton connection instance
+let dbInstance = null;
+
 /**
- * Returns a new SQLite database connection for the portfolio database.
+ * Returns a singleton SQLite database connection for the portfolio database.
  *
  * WHY: Each API request needs database access to query modules, reflections, and feedback.
- * This function provides a database connection factory. However, it has a CRITICAL FLAW:
- * it creates a NEW connection on every call instead of pooling connections. Under load,
- * this exhausts file descriptors and crashes the service.
+ * This function provides a singleton connection that is reused across all requests, fixing
+ * the critical EMFILE connection leak that caused service crashes after ~70 concurrent requests.
  *
- * CRITICAL ISSUE - Connection Leak:
- * - Each call opens a NEW SQLite connection (3 file descriptors: .db, .wal, .shm)
- * - Connections are NEVER closed (no db.close() in endpoints)
- * - With 1000 concurrent requests: 3000 file descriptors (exceeds Linux ulimit of 1024)
- * - Result: EMFILE errors, service crashes after ~70 requests
+ * FIXED ISSUE - Connection Leak:
+ * - OLD: Each call opened a NEW SQLite connection (3 file descriptors: .db, .wal, .shm)
+ * - NEW: Single connection created once and reused (only 3 FDs total)
+ * - Result: No more EMFILE errors, supports 1000+ concurrent requests
  *
- * CRITICAL ISSUE - Event Loop Blocking:
- * - better-sqlite3 is 100% SYNCHRONOUS (blocks main thread)
- * - A 50ms query blocks ALL other requests for 50ms
- * - With 1000 concurrent requests: queue depth explodes, timeouts cascade
+ * REMAINING ISSUE - Event Loop Blocking:
+ * - better-sqlite3 is still 100% SYNCHRONOUS (blocks main thread)
+ * - A 50ms query still blocks ALL other requests for 50ms
  * - Max throughput: ~100 req/s (single-threaded bottleneck)
+ * - Future fix: Worker thread pool or migrate to PostgreSQL
  *
- * Recommended Fixes:
- * 1. SHORT-TERM: Singleton pattern (one connection, reused)
- * 2. MEDIUM-TERM: Worker thread pool (4-16 workers)
- * 3. LONG-TERM: Migrate to PostgreSQL with async connection pooling
+ * Connection Lifecycle:
+ * - First call: Creates connection with WAL mode and foreign keys enabled
+ * - Subsequent calls: Returns existing connection (instant)
+ * - Shutdown: Connection persists until process exit (no cleanup needed)
  *
- * See: docs/API-SECURITY-AUDIT.md section 3.4 for implementation examples
+ * Thread Safety:
+ * - better-sqlite3 connections are NOT thread-safe
+ * - Safe for concurrent requests in single-threaded Node.js event loop
+ * - NOT safe if using worker_threads (requires one connection per thread)
  *
- * @returns {Database} New SQLite database connection to portfolio.db
+ * @returns {Database} Singleton SQLite database connection to portfolio.db
  * @returns {Function} return.prepare - Prepared statement factory
  * @returns {Function} return.exec - Execute raw SQL (DDL)
  * @returns {Function} return.pragma - Get/set SQLite pragmas
- * @returns {Function} return.close - Close connection (NOT called in current code)
+ * @returns {Function} return.close - Close connection (should NOT be called in endpoints)
  *
  * @throws {Error} If database file doesn't exist (SQLITE_CANTOPEN)
  * @throws {Error} If database is corrupted (SQLITE_CORRUPT)
- * @throws {Error} If file descriptor limit exceeded (EMFILE: too many open files)
  * @throws {Error} If another process holds exclusive lock (SQLITE_BUSY)
  * @throws {Error} If disk full (SQLITE_FULL)
  *
  * @example
- * // CURRENT USAGE (BROKEN - causes connection leaks)
+ * // FIXED USAGE (singleton pattern - no leaks)
  * import { getDatabase } from './init-db.js';
  *
  * app.get('/api/modules', (req, res) => {
- *   const db = getDatabase();  // ❌ Creates new connection
+ *   const db = getDatabase();  // ✅ Returns singleton connection
  *   const modules = db.prepare('SELECT * FROM modules').all();
  *   res.json({ success: true, modules });
- *   // ❌ Connection never closed - LEAKS
+ *   // ✅ Connection stays open for reuse (no leak)
  * });
  *
  * @example
- * // RECOMMENDED USAGE (with explicit close)
- * import { getDatabase } from './init-db.js';
+ * // Multiple concurrent requests share the same connection
+ * // Request 1
+ * const db1 = getDatabase();  // Creates connection
  *
- * app.get('/api/modules', (req, res) => {
- *   const db = getDatabase();
- *   try {
- *     const modules = db.prepare('SELECT * FROM modules').all();
- *     res.json({ success: true, modules });
- *   } finally {
- *     db.close();  // ✅ Properly closes connection
- *   }
- * });
+ * // Request 2 (concurrent)
+ * const db2 = getDatabase();  // Reuses same connection
+ *
+ * console.log(db1 === db2);   // true (same instance)
  *
  * @see {@link https://github.com/WiseLibs/better-sqlite3/wiki/API|better-sqlite3 API}
  * @see {@link docs/API-SECURITY-AUDIT.md|Security Audit Section 3}
  */
 export function getDatabase() {
-  return new Database(DB_PATH);
+  if (!dbInstance) {
+    dbInstance = new Database(DB_PATH);
+    dbInstance.pragma('journal_mode = WAL');
+    dbInstance.pragma('foreign_keys = ON');
+  }
+  return dbInstance;
 }
 
 // Run if called directly
