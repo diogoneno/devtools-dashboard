@@ -1,15 +1,38 @@
 import express from 'express';
 import { getDatabase } from './init-db.js';
 import { applySecurityMiddleware, writeRateLimiter } from '../../shared/security-middleware.js';
+import { createLogger, requestLogger, errorLogger } from '../../shared/logger.js';
 
 const app = express();
 const PORT = process.env.BACKUP_API_PORT || 5007;
 
+// Create logger
+const logger = createLogger({
+  serviceName: 'backup-api',
+  level: process.env.LOG_LEVEL || 'info',
+  enableFile: process.env.NODE_ENV === 'production'
+});
+
 // Apply security middleware (headers, CORS, rate limiting, body size limits)
 applySecurityMiddleware(app);
 
+// Add request logging
+app.use(requestLogger(logger));
+
+// Alias for write rate limiter
+const writeLimiter = writeRateLimiter();
+
+// Health check - now verifies DB connection
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'backup-api' });
+  try {
+    const db = getDatabase();
+    // Verify DB connection with a simple query
+    db.prepare('SELECT 1').get();
+    res.json({ status: 'ok', service: 'backup-api', database: 'connected' });
+  } catch (error) {
+    logger.error('Health check failed', { error: error.message });
+    res.status(503).json({ status: 'error', service: 'backup-api', database: 'disconnected', error: error.message });
+  }
 });
 
 // Get KPIs
@@ -55,31 +78,42 @@ app.get('/api/kpis', (req, res) => {
       }
     });
   } catch (error) {
+    logger.error('Error fetching KPIs', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
 
 // Ingest backup jobs
-app.post('/api/ingest/jobs', (req, res) => {
+app.post('/api/ingest/jobs', writeLimiter, (req, res) => {
+  const db = getDatabase();
+
   try {
     const { jobs } = req.body;
-    const db = getDatabase();
-    const stmt = db.prepare(`
-      INSERT OR REPLACE INTO backups (job_id, policy, client, size_gb, duration_s, status, start_ts, end_ts, immutable, storage_tier)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
 
-    let inserted = 0;
-    for (const job of jobs) {
-      stmt.run(
-        job.job_id, job.policy, job.client, job.size_gb, job.duration_s,
-        job.status, job.start_ts, job.end_ts, job.immutable ? 1 : 0, job.storage_tier
-      );
-      inserted++;
-    }
+    // Use explicit transaction to prevent race conditions
+    const transaction = db.transaction(() => {
+      const stmt = db.prepare(`
+        INSERT OR REPLACE INTO backups (job_id, policy, client, size_gb, duration_s, status, start_ts, end_ts, immutable, storage_tier)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
 
+      let inserted = 0;
+      for (const job of jobs) {
+        stmt.run(
+          job.job_id, job.policy, job.client, job.size_gb, job.duration_s,
+          job.status, job.start_ts, job.end_ts, job.immutable ? 1 : 0, job.storage_tier
+        );
+        inserted++;
+      }
+      return inserted;
+    });
+
+    const inserted = transaction();
+
+    logger.info('Backup jobs ingested', { count: inserted });
     res.json({ success: true, inserted });
   } catch (error) {
+    logger.error('Error ingesting backup jobs', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
@@ -104,12 +138,15 @@ app.get('/api/backups', (req, res) => {
     const backups = db.prepare(query).all(...params);
     res.json({ success: true, backups });
   } catch (error) {
+    logger.error('Error fetching backups', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
 
 // DR simulation
-app.post('/api/dr/run', (req, res) => {
+app.post('/api/dr/run', writeLimiter, (req, res) => {
+  const db = getDatabase();
+
   try {
     const { scenario, targets, data_profile, desired_rto } = req.body;
 
@@ -124,12 +161,17 @@ app.post('/api/dr/run', (req, res) => {
 
     const totalTime = Math.max(...timeline.map(t => t.end));
 
-    const db = getDatabase();
-    db.prepare(`
-      INSERT INTO dr_scenarios (name, targets_json, data_profile_json, desired_rto_s, estimated_timeline_json)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(scenario, JSON.stringify(targets), JSON.stringify(data_profile), desired_rto, JSON.stringify(timeline));
+    // Use explicit transaction
+    const transaction = db.transaction(() => {
+      return db.prepare(`
+        INSERT INTO dr_scenarios (name, targets_json, data_profile_json, desired_rto_s, estimated_timeline_json)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(scenario, JSON.stringify(targets), JSON.stringify(data_profile), desired_rto, JSON.stringify(timeline));
+    });
 
+    const result = transaction();
+
+    logger.info('DR scenario created', { scenario, id: result.lastInsertRowid });
     res.json({
       success: true,
       timeline,
@@ -137,10 +179,15 @@ app.post('/api/dr/run', (req, res) => {
       meetsRTO: desired_rto ? totalTime <= desired_rto : null
     });
   } catch (error) {
+    logger.error('Error running DR simulation', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
 
+// Error logger middleware (must be last)
+app.use(errorLogger(logger));
+
 app.listen(PORT, () => {
+  logger.info('Backup API started', { port: PORT, env: process.env.NODE_ENV || 'development' });
   console.log(`✅ Backup API running on http://localhost:${PORT}`);
 });

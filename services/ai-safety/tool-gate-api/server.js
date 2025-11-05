@@ -1,15 +1,38 @@
 import express from 'express';
 import { applySecurityMiddleware, writeRateLimiter } from '../../shared/security-middleware.js';
+import { createLogger, requestLogger, errorLogger } from '../../shared/logger.js';
 import { getDatabase } from '../shared/init-db.js';
 
 const app = express();
 const PORT = process.env.PORT || 5014;
 
+// Create logger
+const logger = createLogger({
+  serviceName: 'tool-gate-api',
+  level: process.env.LOG_LEVEL || 'info',
+  enableFile: process.env.NODE_ENV === 'production'
+});
+
 // Apply security middleware (headers, CORS, rate limiting, body size limits)
 applySecurityMiddleware(app);
 
+// Add request logging
+app.use(requestLogger(logger));
+
+// Alias for write rate limiter
+const writeLimiter = writeRateLimiter();
+
+// Health check - now verifies DB connection
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'tool-gate-api' });
+  try {
+    const db = getDatabase();
+    // Verify DB connection with a simple query
+    db.prepare('SELECT 1').get();
+    res.json({ status: 'ok', service: 'tool-gate-api', database: 'connected' });
+  } catch (error) {
+    logger.error('Health check failed', { error: error.message });
+    res.status(503).json({ status: 'error', service: 'tool-gate-api', database: 'disconnected', error: error.message });
+  }
 });
 
 // Get all tool gates configuration
@@ -19,15 +42,17 @@ app.get('/api/gates', (req, res) => {
     const gates = db.prepare('SELECT * FROM tool_gates ORDER BY risk_level DESC').all();
     res.json({ success: true, gates });
   } catch (error) {
+    logger.error('Error fetching gates', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
 
 // Request access to a tool
-app.post('/api/request', (req, res) => {
+app.post('/api/request', writeLimiter, (req, res) => {
+  const db = getDatabase();
+
   try {
     const { tool_name, agent_id, context, auto_approve } = req.body;
-    const db = getDatabase();
 
     // Get tool gate configuration
     const gate = db.prepare('SELECT * FROM tool_gates WHERE tool_name = ?').get(tool_name);
@@ -60,18 +85,23 @@ app.post('/api/request', (req, res) => {
       }
     }
 
-    // Log the access request
-    db.prepare(`
-      INSERT INTO tool_access_logs (tool_name, agent_id, context, approved, reason)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(
-      tool_name,
-      agent_id || 'anonymous',
-      context || null,
-      approved ? 1 : 0,
-      approved ? 'Auto-approved' : gate.requires_approval ? 'Pending manual approval' : 'Denied - context mismatch'
-    );
+    // Log the access request in transaction
+    const transaction = db.transaction(() => {
+      db.prepare(`
+        INSERT INTO tool_access_logs (tool_name, agent_id, context, approved, reason)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(
+        tool_name,
+        agent_id || 'anonymous',
+        context || null,
+        approved ? 1 : 0,
+        approved ? 'Auto-approved' : gate.requires_approval ? 'Pending manual approval' : 'Denied - context mismatch'
+      );
+    });
 
+    transaction();
+
+    logger.info('Tool access requested', { tool_name, agent_id, approved });
     res.json({
       success: true,
       approved,
@@ -80,22 +110,30 @@ app.post('/api/request', (req, res) => {
       reason: approved ? 'Access granted' : 'Approval required or context not allowed'
     });
   } catch (error) {
+    logger.error('Error processing access request', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
 
 // Approve pending access request
-app.post('/api/approve/:log_id', (req, res) => {
+app.post('/api/approve/:log_id', writeLimiter, (req, res) => {
+  const db = getDatabase();
+
   try {
     const { log_id } = req.params;
     const { approved, reason } = req.body;
-    const db = getDatabase();
 
-    db.prepare('UPDATE tool_access_logs SET approved = ?, reason = ? WHERE id = ?')
-      .run(approved ? 1 : 0, reason || 'Manual review', log_id);
+    const transaction = db.transaction(() => {
+      db.prepare('UPDATE tool_access_logs SET approved = ?, reason = ? WHERE id = ?')
+        .run(approved ? 1 : 0, reason || 'Manual review', log_id);
+    });
 
+    transaction();
+
+    logger.info('Access request updated', { log_id, approved });
     res.json({ success: true, message: 'Access request updated' });
   } catch (error) {
+    logger.error('Error approving access', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
@@ -119,16 +157,18 @@ app.get('/api/logs', (req, res) => {
     const logs = db.prepare(query).all(...params);
     res.json({ success: true, logs });
   } catch (error) {
+    logger.error('Error fetching logs', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
 
 // Update tool gate configuration
-app.patch('/api/gates/:tool_name', (req, res) => {
+app.patch('/api/gates/:tool_name', writeLimiter, (req, res) => {
+  const db = getDatabase();
+
   try {
     const { tool_name } = req.params;
     const { enabled, requires_approval, risk_level, allowed_contexts, rate_limit } = req.body;
-    const db = getDatabase();
 
     const updates = [];
     const params = [];
@@ -160,11 +200,17 @@ app.patch('/api/gates/:tool_name', (req, res) => {
 
     params.push(tool_name);
 
-    db.prepare(`UPDATE tool_gates SET ${updates.join(', ')} WHERE tool_name = ?`)
-      .run(...params);
+    const transaction = db.transaction(() => {
+      db.prepare(`UPDATE tool_gates SET ${updates.join(', ')} WHERE tool_name = ?`)
+        .run(...params);
+    });
 
+    transaction();
+
+    logger.info('Tool gate updated', { tool_name });
     res.json({ success: true, message: 'Tool gate updated' });
   } catch (error) {
+    logger.error('Error updating gate', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
@@ -193,27 +239,39 @@ app.get('/api/stats', (req, res) => {
       }
     });
   } catch (error) {
+    logger.error('Error fetching stats', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
 
 // Create new tool gate
-app.post('/api/gates', (req, res) => {
+app.post('/api/gates', writeLimiter, (req, res) => {
+  const db = getDatabase();
+
   try {
     const { tool_name, description, risk_level, requires_approval, allowed_contexts } = req.body;
-    const db = getDatabase();
 
-    db.prepare(`
-      INSERT INTO tool_gates (tool_name, description, risk_level, requires_approval, allowed_contexts)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(tool_name, description, risk_level, requires_approval ? 1 : 0, allowed_contexts || null);
+    const transaction = db.transaction(() => {
+      db.prepare(`
+        INSERT INTO tool_gates (tool_name, description, risk_level, requires_approval, allowed_contexts)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(tool_name, description, risk_level, requires_approval ? 1 : 0, allowed_contexts || null);
+    });
 
+    transaction();
+
+    logger.info('Tool gate created', { tool_name });
     res.json({ success: true, message: 'Tool gate created' });
   } catch (error) {
+    logger.error('Error creating gate', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
 
+// Error logger middleware (must be last)
+app.use(errorLogger(logger));
+
 app.listen(PORT, () => {
+  logger.info('Tool Gate API started', { port: PORT, env: process.env.NODE_ENV || 'development' });
   console.log(`✅ Tool Gate API running on http://localhost:${PORT}`);
 });

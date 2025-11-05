@@ -3,19 +3,41 @@ import dotenv from 'dotenv';
 import { getDatabase } from './init-db.js';
 import { writeFileSync } from 'fs';
 import { applySecurityMiddleware, writeRateLimiter } from '../../shared/security-middleware.js';
+import { createLogger, requestLogger, errorLogger } from '../../shared/logger.js';
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORTFOLIO_API_PORT || 5006;
 
+// Create logger
+const logger = createLogger({
+  serviceName: 'portfolio-api',
+  level: process.env.LOG_LEVEL || 'info',
+  enableFile: process.env.NODE_ENV === 'production'
+});
+
 // Apply security middleware (headers, CORS, rate limiting, body size limits)
 applySecurityMiddleware(app);
 
-// Health check
+// Add request logging
+app.use(requestLogger(logger));
+
+// Health check - now verifies DB connection
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'portfolio-api' });
+  try {
+    const db = getDatabase();
+    // Verify DB connection with a simple query
+    db.prepare('SELECT 1').get();
+    res.json({ status: 'ok', service: 'portfolio-api', database: 'connected' });
+  } catch (error) {
+    logger.error('Health check failed', { error: error.message });
+    res.status(503).json({ status: 'error', service: 'portfolio-api', database: 'disconnected', error: error.message });
+  }
 });
+
+// Alias for write rate limiter
+const writeLimiter = writeRateLimiter();
 
 // Get all modules
 app.get('/api/modules', (req, res) => {
@@ -31,7 +53,7 @@ app.get('/api/modules', (req, res) => {
 
     res.json({ success: true, modules });
   } catch (error) {
-    console.error('Error fetching modules:', error);
+    logger.error('Error fetching modules', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
@@ -52,7 +74,7 @@ app.get('/api/modules/:slug', (req, res) => {
 
     res.json({ success: true, module });
   } catch (error) {
-    console.error('Error fetching module:', error);
+    logger.error('Error fetching module', { error: error.message, slug: req.params.slug });
     res.status(500).json({ error: error.message });
   }
 });
@@ -74,7 +96,7 @@ app.get('/api/modules/:slug/artifacts', (req, res) => {
 
     res.json({ success: true, artifacts });
   } catch (error) {
-    console.error('Error fetching artifacts:', error);
+    logger.error('Error fetching artifacts', { error: error.message, slug: req.params.slug });
     res.status(500).json({ error: error.message });
   }
 });
@@ -92,7 +114,7 @@ app.get('/api/modules/:slug/outcomes', (req, res) => {
     const outcomes = JSON.parse(module.outcomes_json || '[]');
     res.json({ success: true, outcomes });
   } catch (error) {
-    console.error('Error fetching outcomes:', error);
+    logger.error('Error fetching outcomes', { error: error.message, slug: req.params.slug });
     res.status(500).json({ error: error.message });
   }
 });
@@ -110,7 +132,7 @@ app.get('/api/modules/:slug/rubric', (req, res) => {
     const rubric = JSON.parse(module.rubric_json || '[]');
     res.json({ success: true, rubric });
   } catch (error) {
-    console.error('Error fetching rubric:', error);
+    logger.error('Error fetching rubric', { error: error.message, slug: req.params.slug });
     res.status(500).json({ error: error.message });
   }
 });
@@ -131,13 +153,15 @@ app.get('/api/modules/:slug/reflections', (req, res) => {
 
     res.json({ success: true, reflections });
   } catch (error) {
-    console.error('Error fetching reflections:', error);
+    logger.error('Error fetching reflections', { error: error.message, slug: req.params.slug });
     res.status(500).json({ error: error.message });
   }
 });
 
 // Add reflection
 app.post('/api/modules/:slug/reflections', writeLimiter, (req, res) => {
+  const db = getDatabase();
+
   try {
     const { title, body_md, tags, date } = req.body;
 
@@ -145,27 +169,32 @@ app.post('/api/modules/:slug/reflections', writeLimiter, (req, res) => {
       return res.status(400).json({ error: 'title and body_md are required' });
     }
 
-    const db = getDatabase();
-    const stmt = db.prepare(`
-      INSERT INTO reflections (module_slug, date, title, body_md, tags_json)
-      VALUES (?, ?, ?, ?, ?)
-    `);
+    // Use explicit transaction to prevent race conditions
+    const transaction = db.transaction(() => {
+      const stmt = db.prepare(`
+        INSERT INTO reflections (module_slug, date, title, body_md, tags_json)
+        VALUES (?, ?, ?, ?, ?)
+      `);
 
-    const result = stmt.run(
-      req.params.slug,
-      date || new Date().toISOString().split('T')[0],
-      title,
-      body_md,
-      JSON.stringify(tags || [])
-    );
+      return stmt.run(
+        req.params.slug,
+        date || new Date().toISOString().split('T')[0],
+        title,
+        body_md,
+        JSON.stringify(tags || [])
+      );
+    });
 
+    const result = transaction();
+
+    logger.info('Reflection added', { slug: req.params.slug, id: result.lastInsertRowid });
     res.json({
       success: true,
       id: result.lastInsertRowid,
       message: 'Reflection added'
     });
   } catch (error) {
-    console.error('Error adding reflection:', error);
+    logger.error('Error adding reflection', { error: error.message, slug: req.params.slug });
     res.status(500).json({ error: error.message });
   }
 });
@@ -186,13 +215,15 @@ app.get('/api/modules/:slug/feedback', (req, res) => {
 
     res.json({ success: true, feedback });
   } catch (error) {
-    console.error('Error fetching feedback:', error);
+    logger.error('Error fetching feedback', { error: error.message, slug: req.params.slug });
     res.status(500).json({ error: error.message });
   }
 });
 
 // Add feedback
 app.post('/api/modules/:slug/feedback', writeLimiter, (req, res) => {
+  const db = getDatabase();
+
   try {
     const { author, body_md, rubric_scores, date } = req.body;
 
@@ -200,27 +231,32 @@ app.post('/api/modules/:slug/feedback', writeLimiter, (req, res) => {
       return res.status(400).json({ error: 'author and body_md are required' });
     }
 
-    const db = getDatabase();
-    const stmt = db.prepare(`
-      INSERT INTO feedback (module_slug, author, date, body_md, rubric_scores_json)
-      VALUES (?, ?, ?, ?, ?)
-    `);
+    // Use explicit transaction to prevent race conditions
+    const transaction = db.transaction(() => {
+      const stmt = db.prepare(`
+        INSERT INTO feedback (module_slug, author, date, body_md, rubric_scores_json)
+        VALUES (?, ?, ?, ?, ?)
+      `);
 
-    const result = stmt.run(
-      req.params.slug,
-      author,
-      date || new Date().toISOString().split('T')[0],
-      body_md,
-      JSON.stringify(rubric_scores || {})
-    );
+      return stmt.run(
+        req.params.slug,
+        author,
+        date || new Date().toISOString().split('T')[0],
+        body_md,
+        JSON.stringify(rubric_scores || {})
+      );
+    });
 
+    const result = transaction();
+
+    logger.info('Feedback added', { slug: req.params.slug, id: result.lastInsertRowid, author });
     res.json({
       success: true,
       id: result.lastInsertRowid,
       message: 'Feedback added'
     });
   } catch (error) {
-    console.error('Error adding feedback:', error);
+    logger.error('Error adding feedback', { error: error.message, slug: req.params.slug });
     res.status(500).json({ error: error.message });
   }
 });
@@ -261,11 +297,15 @@ app.post('/api/export/json', writeLimiter, (req, res) => {
       data: exportData
     });
   } catch (error) {
-    console.error('Export error:', error);
+    logger.error('Export error', { error: error.message });
     res.status(500).json({ error: error.message });
   }
 });
 
+// Error logger middleware (must be last)
+app.use(errorLogger(logger));
+
 app.listen(PORT, () => {
+  logger.info('Portfolio API started', { port: PORT, env: process.env.NODE_ENV || 'development' });
   console.log(`✅ Portfolio API running on http://localhost:${PORT}`);
 });

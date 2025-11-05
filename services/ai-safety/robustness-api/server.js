@@ -1,15 +1,38 @@
 import express from 'express';
 import { applySecurityMiddleware, writeRateLimiter } from '../../shared/security-middleware.js';
+import { createLogger, requestLogger, errorLogger } from '../../shared/logger.js';
 import { getDatabase } from '../shared/init-db.js';
 
 const app = express();
 const PORT = process.env.PORT || 5013;
 
+// Create logger
+const logger = createLogger({
+  serviceName: 'robustness-api',
+  level: process.env.LOG_LEVEL || 'info',
+  enableFile: process.env.NODE_ENV === 'production'
+});
+
 // Apply security middleware (headers, CORS, rate limiting, body size limits)
 applySecurityMiddleware(app);
 
+// Add request logging
+app.use(requestLogger(logger));
+
+// Alias for write rate limiter
+const writeLimiter = writeRateLimiter();
+
+// Health check - now verifies DB connection
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'robustness-api' });
+  try {
+    const db = getDatabase();
+    // Verify DB connection with a simple query
+    db.prepare('SELECT 1').get();
+    res.json({ status: 'ok', service: 'robustness-api', database: 'connected' });
+  } catch (error) {
+    logger.error('Health check failed', { error: error.message });
+    res.status(503).json({ status: 'error', service: 'robustness-api', database: 'disconnected', error: error.message });
+  }
 });
 
 // Text perturbation methods
@@ -116,15 +139,17 @@ app.post('/api/text/perturb', (req, res) => {
 
     res.json({ success: true, perturbations: results });
   } catch (error) {
+    logger.error('Error perturbing text', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
 
 // Test model robustness
-app.post('/api/test/consistency', (req, res) => {
+app.post('/api/test/consistency', writeLimiter, (req, res) => {
+  const db = getDatabase();
+
   try {
     const { text, method, model_endpoint, model_name } = req.body;
-    const db = getDatabase();
 
     if (!textPerturbations[method]) {
       return res.status(400).json({ error: 'Invalid perturbation method' });
@@ -140,24 +165,29 @@ app.post('/api/test/consistency', (req, res) => {
     // Calculate simple consistency score (in reality, use semantic similarity)
     const consistencyScore = originalOutput === perturbedOutput ? 1.0 : 0.5;
 
-    // Store test result
-    db.prepare(`
-      INSERT INTO robustness_tests (test_type, original_input, perturbed_input,
-                                    perturbation_method, original_output, perturbed_output,
-                                    consistency_score, model_tested, metadata_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      'text_perturbation',
-      text,
-      perturbed,
-      method,
-      originalOutput,
-      perturbedOutput,
-      consistencyScore,
-      model_name || 'test-model',
-      JSON.stringify({ endpoint: model_endpoint })
-    );
+    // Store test result in transaction
+    const transaction = db.transaction(() => {
+      db.prepare(`
+        INSERT INTO robustness_tests (test_type, original_input, perturbed_input,
+                                      perturbation_method, original_output, perturbed_output,
+                                      consistency_score, model_tested, metadata_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        'text_perturbation',
+        text,
+        perturbed,
+        method,
+        originalOutput,
+        perturbedOutput,
+        consistencyScore,
+        model_name || 'test-model',
+        JSON.stringify({ endpoint: model_endpoint })
+      );
+    });
 
+    transaction();
+
+    logger.info('Robustness test completed', { method, model_name, consistencyScore });
     res.json({
       success: true,
       test: {
@@ -171,6 +201,7 @@ app.post('/api/test/consistency', (req, res) => {
       }
     });
   } catch (error) {
+    logger.error('Error testing consistency', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
@@ -186,6 +217,7 @@ app.get('/api/methods', (req, res) => {
 
     res.json({ success: true, methods });
   } catch (error) {
+    logger.error('Error fetching methods', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
@@ -211,6 +243,7 @@ app.get('/api/history', (req, res) => {
 
     res.json({ success: true, history });
   } catch (error) {
+    logger.error('Error fetching history', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
@@ -237,6 +270,7 @@ app.get('/api/stats', (req, res) => {
       }
     });
   } catch (error) {
+    logger.error('Error fetching stats', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
@@ -249,6 +283,10 @@ app.post('/api/image/perturb', (req, res) => {
   });
 });
 
+// Error logger middleware (must be last)
+app.use(errorLogger(logger));
+
 app.listen(PORT, () => {
+  logger.info('Robustness API started', { port: PORT, env: process.env.NODE_ENV || 'development' });
   console.log(`✅ Robustness API running on http://localhost:${PORT}`);
 });

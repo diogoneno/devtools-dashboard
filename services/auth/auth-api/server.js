@@ -25,6 +25,7 @@ import cookieParser from 'cookie-parser';
 import crypto from 'crypto';
 import { getDatabase } from './init-db.js';
 import { applySecurityMiddleware, writeRateLimiter } from '../../shared/security-middleware.js';
+import { createLogger, requestLogger, errorLogger } from '../../../shared/logger.js';
 
 dotenv.config();
 
@@ -37,13 +38,34 @@ const JWT_ACCESS_EXPIRY = '15m';  // Short-lived access tokens
 const JWT_REFRESH_EXPIRY = '7d';  // Longer-lived refresh tokens
 const BCRYPT_ROUNDS = 10;
 
+// Create logger
+const logger = createLogger({
+  serviceName: 'auth-api',
+  level: process.env.LOG_LEVEL || 'info',
+  enableFile: process.env.NODE_ENV === 'production'
+});
+
 // Apply security middleware (headers, CORS, rate limiting, body size limits)
 applySecurityMiddleware(app);
 app.use(cookieParser());
 
-// Health check
+// Add request logging
+app.use(requestLogger(logger));
+
+// Alias for write rate limiter
+const writeLimiter = writeRateLimiter();
+
+// Health check - now verifies DB connection
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'auth-api' });
+  try {
+    const db = getDatabase();
+    // Verify DB connection with a simple query
+    db.prepare('SELECT 1').get();
+    res.json({ status: 'ok', service: 'auth-api', database: 'connected' });
+  } catch (error) {
+    logger.error('Health check failed', { error: error.message });
+    res.status(503).json({ status: 'error', service: 'auth-api', database: 'disconnected', error: error.message });
+  }
 });
 
 /**
@@ -61,7 +83,9 @@ app.get('/health', (req, res) => {
  * @returns {409} Username or email already exists
  * @returns {500} Server error (database failure, bcrypt error)
  */
-app.post('/auth/register', writeRateLimiter(), async (req, res) => {
+app.post('/auth/register', writeLimiter, async (req, res) => {
+  const db = getDatabase();
+
   try {
     const { username, email, password } = req.body;
 
@@ -87,14 +111,18 @@ app.post('/auth/register', writeRateLimiter(), async (req, res) => {
     // Hash password
     const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
-    // Insert user
-    const db = getDatabase();
+    // Insert user in transaction
     try {
-      const result = db.prepare(`
-        INSERT INTO users (username, email, password_hash, role)
-        VALUES (?, ?, ?, 'user')
-      `).run(username, email, passwordHash);
+      const transaction = db.transaction(() => {
+        return db.prepare(`
+          INSERT INTO users (username, email, password_hash, role)
+          VALUES (?, ?, ?, 'user')
+        `).run(username, email, passwordHash);
+      });
 
+      const result = transaction();
+
+      logger.info('User registered', { userId: result.lastInsertRowid, username });
       res.status(201).json({
         success: true,
         userId: result.lastInsertRowid,
@@ -107,7 +135,7 @@ app.post('/auth/register', writeRateLimiter(), async (req, res) => {
       throw dbError;
     }
   } catch (error) {
-    console.error('Registration error:', error);
+    logger.error('Registration error', { error: error.message, stack: error.stack });
     res.status(500).json({ error: 'Registration failed' });
   }
 });
@@ -128,15 +156,15 @@ app.post('/auth/register', writeRateLimiter(), async (req, res) => {
  * @returns {403} Account disabled (is_active = 0)
  * @returns {500} Server error
  */
-app.post('/auth/login', writeRateLimiter(), async (req, res) => {
+app.post('/auth/login', writeLimiter, async (req, res) => {
+  const db = getDatabase();
+
   try {
     const { username, password } = req.body;
 
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password are required' });
     }
-
-    const db = getDatabase();
 
     // Find user by username or email
     const user = db.prepare(`
@@ -174,18 +202,24 @@ app.post('/auth/login', writeRateLimiter(), async (req, res) => {
     const refreshToken = crypto.randomBytes(64).toString('hex');
     const refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
 
-    // Store refresh token hash
-    db.prepare(`
-      INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-      VALUES (?, ?, datetime('now', '+7 days'))
-    `).run(user.id, refreshTokenHash);
+    // Store tokens and log login in transaction
+    const transaction = db.transaction(() => {
+      // Store refresh token hash
+      db.prepare(`
+        INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
+        VALUES (?, ?, datetime('now', '+7 days'))
+      `).run(user.id, refreshTokenHash);
 
-    // Log login
-    db.prepare(`
-      INSERT INTO login_history (user_id, ip_address, user_agent)
-      VALUES (?, ?, ?)
-    `).run(user.id, req.ip, req.headers['user-agent'] || 'unknown');
+      // Log login
+      db.prepare(`
+        INSERT INTO login_history (user_id, ip_address, user_agent)
+        VALUES (?, ?, ?)
+      `).run(user.id, req.ip, req.headers['user-agent'] || 'unknown');
+    });
 
+    transaction();
+
+    logger.info('User logged in', { userId: user.id, username: user.username });
     res.json({
       success: true,
       accessToken,
@@ -198,7 +232,7 @@ app.post('/auth/login', writeRateLimiter(), async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Login error:', error);
+    logger.error('Login error', { error: error.message, stack: error.stack });
     res.status(500).json({ error: 'Login failed' });
   }
 });
@@ -217,7 +251,9 @@ app.post('/auth/login', writeRateLimiter(), async (req, res) => {
  * @returns {401} Invalid or expired refresh token
  * @returns {500} Server error
  */
-app.post('/auth/refresh', writeRateLimiter(), async (req, res) => {
+app.post('/auth/refresh', writeLimiter, async (req, res) => {
+  const db = getDatabase();
+
   try {
     const { refreshToken } = req.body;
 
@@ -225,7 +261,6 @@ app.post('/auth/refresh', writeRateLimiter(), async (req, res) => {
       return res.status(400).json({ error: 'Refresh token is required' });
     }
 
-    const db = getDatabase();
     const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
 
     // Find refresh token
@@ -250,11 +285,6 @@ app.post('/auth/refresh', writeRateLimiter(), async (req, res) => {
       return res.status(403).json({ error: 'Account is disabled' });
     }
 
-    // Revoke old refresh token (token rotation)
-    db.prepare(`
-      UPDATE refresh_tokens SET revoked_at = datetime('now') WHERE id = ?
-    `).run(storedToken.id);
-
     // Generate new access token
     const accessToken = jwt.sign(
       {
@@ -271,18 +301,30 @@ app.post('/auth/refresh', writeRateLimiter(), async (req, res) => {
     const newRefreshToken = crypto.randomBytes(64).toString('hex');
     const newRefreshTokenHash = crypto.createHash('sha256').update(newRefreshToken).digest('hex');
 
-    db.prepare(`
-      INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
-      VALUES (?, ?, datetime('now', '+7 days'))
-    `).run(storedToken.user_id, newRefreshTokenHash);
+    // Token rotation in transaction
+    const transaction = db.transaction(() => {
+      // Revoke old refresh token (token rotation)
+      db.prepare(`
+        UPDATE refresh_tokens SET revoked_at = datetime('now') WHERE id = ?
+      `).run(storedToken.id);
 
+      // Insert new refresh token
+      db.prepare(`
+        INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
+        VALUES (?, ?, datetime('now', '+7 days'))
+      `).run(storedToken.user_id, newRefreshTokenHash);
+    });
+
+    transaction();
+
+    logger.info('Token refreshed', { userId: storedToken.user_id });
     res.json({
       success: true,
       accessToken,
       refreshToken: newRefreshToken
     });
   } catch (error) {
-    console.error('Refresh error:', error);
+    logger.error('Refresh error', { error: error.message, stack: error.stack });
     res.status(500).json({ error: 'Token refresh failed' });
   }
 });
@@ -300,6 +342,8 @@ app.post('/auth/refresh', writeRateLimiter(), async (req, res) => {
  * @returns {500} Server error
  */
 app.post('/auth/logout', (req, res) => {
+  const db = getDatabase();
+
   try {
     const { refreshToken } = req.body;
 
@@ -307,18 +351,22 @@ app.post('/auth/logout', (req, res) => {
       return res.status(400).json({ error: 'Refresh token is required' });
     }
 
-    const db = getDatabase();
     const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
 
-    // Revoke refresh token
-    db.prepare(`
-      UPDATE refresh_tokens SET revoked_at = datetime('now')
-      WHERE token_hash = ? AND revoked_at IS NULL
-    `).run(tokenHash);
+    // Revoke refresh token in transaction
+    const transaction = db.transaction(() => {
+      db.prepare(`
+        UPDATE refresh_tokens SET revoked_at = datetime('now')
+        WHERE token_hash = ? AND revoked_at IS NULL
+      `).run(tokenHash);
+    });
 
+    transaction();
+
+    logger.info('User logged out');
     res.json({ success: true, message: 'Logged out successfully' });
   } catch (error) {
-    console.error('Logout error:', error);
+    logger.error('Logout error', { error: error.message, stack: error.stack });
     res.status(500).json({ error: 'Logout failed' });
   }
 });
@@ -369,12 +417,16 @@ app.get('/auth/me', (req, res) => {
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({ error: 'Token expired' });
     }
-    console.error('Get user error:', error);
+    logger.error('Get user error', { error: error.message, stack: error.stack });
     res.status(500).json({ error: 'Failed to get user info' });
   }
 });
 
+// Error logger middleware (must be last)
+app.use(errorLogger(logger));
+
 // Start server
 app.listen(PORT, () => {
+  logger.info('Auth API started', { port: PORT, env: process.env.NODE_ENV || 'development' });
   console.log(`🔐 Auth API listening on port ${PORT}`);
 });

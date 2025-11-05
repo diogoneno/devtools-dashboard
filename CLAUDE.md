@@ -66,13 +66,19 @@ DevTools Dashboard - Enterprise Edition: A comprehensive web application with 60
 4. **CORS Hardened** - Replaced wide-open CORS with configurable allowed origins (defaults to localhost for dev).
 5. **Flask Threading Enabled** - Flask dev server now runs with `threaded=True` for better concurrency.
 
+**HIGH PRIORITY FIXES APPLIED (2025-11-05):**
+6. **Structured Logging with Winston** - All 14 microservices now use Winston for structured JSON logging with automatic credential redaction (tokens, passwords, API keys). Logs include request tracing, error stack traces, and contextual metadata.
+7. **Enhanced Health Checks** - All `/health` endpoints now verify database connectivity with `SELECT 1` queries and return 503 status on failure.
+8. **Explicit Transactions** - All write operations (POST/PUT/DELETE/PATCH) now use explicit `db.transaction()` to prevent race conditions and ensure atomicity.
+
 **Files Modified:**
 - `services/portfolio/portfolio-api/init-db.js` - Singleton pattern
 - `services/resilience/backup-api/init-db.js` - Singleton pattern
 - `services/ai-safety/shared/init-db.js` - Singleton pattern
 - `services/misinfo/init-db.js` - Singleton pattern
 - `services/shared/security-middleware.js` - NEW: Shared security middleware
-- All 14 `server.js` files - Apply security middleware
+- `services/shared/logger.js` - NEW: Winston-based structured logging with credential sanitization
+- All 14 `server.js` files - Security middleware, structured logging, enhanced health checks, explicit transactions
 - `backend/app.py` - Security headers, hardened CORS, threading enabled
 
 **Remaining Known Issues** (see `docs/API-SECURITY-AUDIT.md` for full details):

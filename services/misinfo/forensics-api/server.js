@@ -1,13 +1,24 @@
 import express from 'express';
 import { applySecurityMiddleware, writeRateLimiter } from '../../shared/security-middleware.js';
+import { createLogger, requestLogger, errorLogger } from '../../shared/logger.js';
 import { extractEXIF } from './exif-extractor.js';
 import { extractOCR } from './ocr-extractor.js';
 
 const app = express();
 const PORT = process.env.FORENSICS_PORT || 5004;
 
+// Create logger
+const logger = createLogger({
+  serviceName: 'forensics-api',
+  level: process.env.LOG_LEVEL || 'info',
+  enableFile: process.env.NODE_ENV === 'production'
+});
+
 // Apply security middleware (headers, CORS, rate limiting, body size limits)
 applySecurityMiddleware(app);
+
+// Add request logging
+app.use(requestLogger(logger));
 
 // Health check
 app.get('/health', (req, res) => {
@@ -31,7 +42,7 @@ app.post('/api/forensics/exif', async (req, res) => {
       message: 'EXIF data extracted'
     });
   } catch (error) {
-    console.error('EXIF extraction error:', error);
+    logger.error('EXIF extraction error', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
@@ -53,7 +64,7 @@ app.post('/api/forensics/ocr', async (req, res) => {
       message: 'OCR text extracted'
     });
   } catch (error) {
-    console.error('OCR extraction error:', error);
+    logger.error('OCR extraction error', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
@@ -116,6 +127,10 @@ app.get('/api/forensics/tools', (req, res) => {
   });
 });
 
+// Error logger middleware (must be last)
+app.use(errorLogger(logger));
+
 app.listen(PORT, () => {
+  logger.info('Forensics API started', { port: PORT, env: process.env.NODE_ENV || 'development' });
   console.log(`✅ Forensics API running on http://localhost:${PORT}`);
 });

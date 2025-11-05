@@ -1,22 +1,46 @@
 import express from 'express';
 import { applySecurityMiddleware, writeRateLimiter } from '../../shared/security-middleware.js';
+import { createLogger, requestLogger, errorLogger } from '../../shared/logger.js';
 import { getDatabase } from '../shared/init-db.js';
 
 const app = express();
 const PORT = process.env.PORT || 5011;
 
+// Create logger
+const logger = createLogger({
+  serviceName: 'prompt-monitor-api',
+  level: process.env.LOG_LEVEL || 'info',
+  enableFile: process.env.NODE_ENV === 'production'
+});
+
 // Apply security middleware (headers, CORS, rate limiting, body size limits)
 applySecurityMiddleware(app);
 
+// Add request logging
+app.use(requestLogger(logger));
+
+// Alias for write rate limiter
+const writeLimiter = writeRateLimiter();
+
+// Health check - now verifies DB connection
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'prompt-monitor-api' });
+  try {
+    const db = getDatabase();
+    // Verify DB connection with a simple query
+    db.prepare('SELECT 1').get();
+    res.json({ status: 'ok', service: 'prompt-monitor-api', database: 'connected' });
+  } catch (error) {
+    logger.error('Health check failed', { error: error.message });
+    res.status(503).json({ status: 'error', service: 'prompt-monitor-api', database: 'disconnected', error: error.message });
+  }
 });
 
 // Score a prompt for injection/jailbreak risks
-app.post('/api/score', (req, res) => {
+app.post('/api/score', writeLimiter, (req, res) => {
+  const db = getDatabase();
+
   try {
     const { input, context, model } = req.body;
-    const db = getDatabase();
 
     // Load active policies
     const policies = db.prepare('SELECT * FROM prompt_policies WHERE enabled = 1').all();
@@ -58,22 +82,27 @@ app.post('/api/score', (req, res) => {
 
     const flagged = maxScore > 0.4;
 
-    // Store in database
-    db.prepare(`
-      INSERT INTO prompt_scores (input_text, context_text, injection_score, jailbreak_score,
-                                 policy_violations, risk_level, flagged, model_used)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      input,
-      context || null,
-      injectionScore,
-      jailbreakScore,
-      JSON.stringify(violations),
-      riskLevel,
-      flagged ? 1 : 0,
-      model || 'unknown'
-    );
+    // Store in database with transaction
+    const transaction = db.transaction(() => {
+      db.prepare(`
+        INSERT INTO prompt_scores (input_text, context_text, injection_score, jailbreak_score,
+                                   policy_violations, risk_level, flagged, model_used)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        input,
+        context || null,
+        injectionScore,
+        jailbreakScore,
+        JSON.stringify(violations),
+        riskLevel,
+        flagged ? 1 : 0,
+        model || 'unknown'
+      );
+    });
 
+    transaction();
+
+    logger.info('Prompt scored', { riskLevel, flagged, violations: violations.length });
     res.json({
       success: true,
       score: {
@@ -86,6 +115,7 @@ app.post('/api/score', (req, res) => {
       }
     });
   } catch (error) {
+    logger.error('Error scoring prompt', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
@@ -115,6 +145,7 @@ app.get('/api/history', (req, res) => {
 
     res.json({ success: true, history });
   } catch (error) {
+    logger.error('Error fetching history', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
@@ -126,41 +157,60 @@ app.get('/api/policies', (req, res) => {
     const policies = db.prepare('SELECT * FROM prompt_policies ORDER BY severity DESC').all();
     res.json({ success: true, policies });
   } catch (error) {
+    logger.error('Error fetching policies', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
 
-app.post('/api/policies', (req, res) => {
+app.post('/api/policies', writeLimiter, (req, res) => {
+  const db = getDatabase();
+
   try {
     const { name, description, rule_type, pattern, severity } = req.body;
-    const db = getDatabase();
 
-    db.prepare(`
-      INSERT INTO prompt_policies (name, description, rule_type, pattern, severity)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(name, description, rule_type, pattern, severity);
+    const transaction = db.transaction(() => {
+      db.prepare(`
+        INSERT INTO prompt_policies (name, description, rule_type, pattern, severity)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(name, description, rule_type, pattern, severity);
+    });
 
+    transaction();
+
+    logger.info('Policy created', { name, severity });
     res.json({ success: true, message: 'Policy created' });
   } catch (error) {
+    logger.error('Error creating policy', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
 
-app.patch('/api/policies/:id', (req, res) => {
+app.patch('/api/policies/:id', writeLimiter, (req, res) => {
+  const db = getDatabase();
+
   try {
     const { id } = req.params;
     const { enabled } = req.body;
-    const db = getDatabase();
 
-    db.prepare('UPDATE prompt_policies SET enabled = ? WHERE id = ?')
-      .run(enabled ? 1 : 0, id);
+    const transaction = db.transaction(() => {
+      db.prepare('UPDATE prompt_policies SET enabled = ? WHERE id = ?')
+        .run(enabled ? 1 : 0, id);
+    });
 
+    transaction();
+
+    logger.info('Policy updated', { id, enabled });
     res.json({ success: true, message: 'Policy updated' });
   } catch (error) {
+    logger.error('Error updating policy', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
 
+// Error logger middleware (must be last)
+app.use(errorLogger(logger));
+
 app.listen(PORT, () => {
+  logger.info('Prompt Monitor API started', { port: PORT, env: process.env.NODE_ENV || 'development' });
   console.log(`✅ Prompt Monitor API running on http://localhost:${PORT}`);
 });

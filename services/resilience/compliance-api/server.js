@@ -1,15 +1,35 @@
 import express from 'express';
 import { applySecurityMiddleware, writeRateLimiter } from '../../shared/security-middleware.js';
 import { getDatabase } from '../backup-api/init-db.js';
+import { createLogger, requestLogger, errorLogger } from '../../shared/logger.js';
 
 const app = express();
 const PORT = process.env.COMPLIANCE_API_PORT || 5010;
 
+// Create logger
+const logger = createLogger({
+  serviceName: 'compliance-api',
+  level: process.env.LOG_LEVEL || 'info',
+  enableFile: process.env.NODE_ENV === 'production'
+});
+
 // Apply security middleware (headers, CORS, rate limiting, body size limits)
 applySecurityMiddleware(app);
 
+// Add request logging
+app.use(requestLogger(logger));
+
+// Health check - now verifies DB connection
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'compliance-api' });
+  try {
+    const db = getDatabase();
+    // Verify DB connection with a simple query
+    db.prepare('SELECT 1').get();
+    res.json({ status: 'ok', service: 'compliance-api', database: 'connected' });
+  } catch (error) {
+    logger.error('Health check failed', { error: error.message });
+    res.status(503).json({ status: 'error', service: 'compliance-api', database: 'disconnected', error: error.message });
+  }
 });
 
 // Get list of available compliance frameworks
@@ -82,10 +102,15 @@ app.post('/api/pack', (req, res) => {
 
     res.json({ success: true, pack });
   } catch (error) {
+    logger.error('Error generating compliance pack', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
 
+// Error logger middleware (must be last)
+app.use(errorLogger(logger));
+
 app.listen(PORT, () => {
+  logger.info('Compliance API started', { port: PORT, env: process.env.NODE_ENV || 'development' });
   console.log(`✅ Compliance API running on http://localhost:${PORT}`);
 });

@@ -1,5 +1,6 @@
 import express from 'express';
 import { applySecurityMiddleware, writeRateLimiter } from '../../shared/security-middleware.js';
+import { createLogger, requestLogger, errorLogger } from '../../shared/logger.js';
 import dotenv from 'dotenv';
 import { getDatabase } from '../init-db.js';
 import { searchFactChecks, parseClaimReview } from './factcheck-connector.js';
@@ -9,16 +10,39 @@ dotenv.config();
 const app = express();
 const PORT = process.env.FACTS_PORT || 5002;
 
+// Create logger
+const logger = createLogger({
+  serviceName: 'facts-api',
+  level: process.env.LOG_LEVEL || 'info',
+  enableFile: process.env.NODE_ENV === 'production'
+});
+
 // Apply security middleware (headers, CORS, rate limiting, body size limits)
 applySecurityMiddleware(app);
 
-// Health check
+// Add request logging
+app.use(requestLogger(logger));
+
+// Alias for write rate limiter
+const writeLimiter = writeRateLimiter();
+
+// Health check - now verifies DB connection
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'facts-api' });
+  try {
+    const db = getDatabase();
+    // Verify DB connection with a simple query
+    db.prepare('SELECT 1').get();
+    res.json({ status: 'ok', service: 'facts-api', database: 'connected' });
+  } catch (error) {
+    logger.error('Health check failed', { error: error.message });
+    res.status(503).json({ status: 'error', service: 'facts-api', database: 'disconnected', error: error.message });
+  }
 });
 
 // Search for fact-checks related to a claim
-app.post('/api/facts/search', async (req, res) => {
+app.post('/api/facts/search', writeLimiter, async (req, res) => {
+  const db = getDatabase();
+
   try {
     const { query, language = 'en', maxResults = 10 } = req.body;
 
@@ -28,26 +52,31 @@ app.post('/api/facts/search', async (req, res) => {
 
     const factChecks = await searchFactChecks(query, language, maxResults);
 
-    // Store in database
-    const db = getDatabase();
-    const stmt = db.prepare(`
-      INSERT OR IGNORE INTO fact_checks (claim_text, publisher, url, rating, reviewed_at, schema_raw)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
+    // Store in database with transaction
+    const transaction = db.transaction(() => {
+      const stmt = db.prepare(`
+        INSERT OR IGNORE INTO fact_checks (claim_text, publisher, url, rating, reviewed_at, schema_raw)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `);
 
-    let inserted = 0;
-    for (const fc of factChecks) {
-      const result = stmt.run(
-        fc.claimText,
-        fc.publisher,
-        fc.url,
-        fc.rating,
-        fc.reviewedAt,
-        JSON.stringify(fc.raw)
-      );
-      if (result.changes > 0) inserted++;
-    }
+      let inserted = 0;
+      for (const fc of factChecks) {
+        const result = stmt.run(
+          fc.claimText,
+          fc.publisher,
+          fc.url,
+          fc.rating,
+          fc.reviewedAt,
+          JSON.stringify(fc.raw)
+        );
+        if (result.changes > 0) inserted++;
+      }
+      return inserted;
+    });
 
+    const inserted = transaction();
+
+    logger.info('Fact-checks searched and stored', { query, found: factChecks.length, inserted });
     res.json({
       success: true,
       factChecks,
@@ -56,7 +85,7 @@ app.post('/api/facts/search', async (req, res) => {
       message: `Found ${factChecks.length} fact-checks, ${inserted} new`
     });
   } catch (error) {
-    console.error('Fact-check search error:', error);
+    logger.error('Fact-check search error', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
@@ -77,7 +106,7 @@ app.post('/api/facts/parse-claimreview', async (req, res) => {
       claimReview
     });
   } catch (error) {
-    console.error('ClaimReview parse error:', error);
+    logger.error('ClaimReview parse error', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
@@ -107,7 +136,7 @@ app.get('/api/facts/stored', (req, res) => {
       count: factChecks.length
     });
   } catch (error) {
-    console.error('Get fact-checks error:', error);
+    logger.error('Get fact-checks error', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
@@ -137,7 +166,7 @@ app.get('/api/factchecks', (req, res) => {
       count: factChecks.length
     });
   } catch (error) {
-    console.error('Get fact-checks error:', error);
+    logger.error('Get fact-checks error', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
@@ -170,6 +199,10 @@ app.get('/api/facts/ifcn-signatories', (req, res) => {
   });
 });
 
+// Error logger middleware (must be last)
+app.use(errorLogger(logger));
+
 app.listen(PORT, () => {
+  logger.info('Facts API started', { port: PORT, env: process.env.NODE_ENV || 'development' });
   console.log(`✅ Facts API running on http://localhost:${PORT}`);
 });

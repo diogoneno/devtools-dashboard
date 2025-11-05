@@ -1,5 +1,6 @@
 import express from 'express';
 import { applySecurityMiddleware, writeRateLimiter } from '../../shared/security-middleware.js';
+import { createLogger, requestLogger, errorLogger } from '../../shared/logger.js';
 import dotenv from 'dotenv';
 import { getDatabase } from '../init-db.js';
 import { extractClaims } from './claim-extractor.js';
@@ -11,16 +12,39 @@ dotenv.config();
 const app = express();
 const PORT = process.env.NLP_PORT || 5003;
 
-app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+// Create logger
+const logger = createLogger({
+  serviceName: 'nlp-api',
+  level: process.env.LOG_LEVEL || 'info',
+  enableFile: process.env.NODE_ENV === 'production'
+});
 
-// Health check
+// Apply security middleware (headers, CORS, rate limiting, body size limits)
+applySecurityMiddleware(app);
+
+// Add request logging
+app.use(requestLogger(logger));
+
+// Alias for write rate limiter
+const writeLimiter = writeRateLimiter();
+
+// Health check - now verifies DB connection
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'nlp-api' });
+  try {
+    const db = getDatabase();
+    // Verify DB connection with a simple query
+    db.prepare('SELECT 1').get();
+    res.json({ status: 'ok', service: 'nlp-api', database: 'connected' });
+  } catch (error) {
+    logger.error('Health check failed', { error: error.message });
+    res.status(503).json({ status: 'error', service: 'nlp-api', database: 'disconnected', error: error.message });
+  }
 });
 
 // Extract claims from text
-app.post('/api/nlp/extract-claims', async (req, res) => {
+app.post('/api/nlp/extract-claims', writeLimiter, async (req, res) => {
+  const db = getDatabase();
+
   try {
     const { text, itemId } = req.body;
 
@@ -32,15 +56,20 @@ app.post('/api/nlp/extract-claims', async (req, res) => {
 
     // Store in database if itemId provided
     if (itemId && claims.length > 0) {
-      const db = getDatabase();
-      const stmt = db.prepare(`
-        INSERT INTO claims (item_id, text, confidence, spans)
-        VALUES (?, ?, ?, ?)
-      `);
+      // Use explicit transaction to prevent race conditions
+      const transaction = db.transaction(() => {
+        const stmt = db.prepare(`
+          INSERT INTO claims (item_id, text, confidence, spans)
+          VALUES (?, ?, ?, ?)
+        `);
 
-      for (const claim of claims) {
-        stmt.run(itemId, claim.text, claim.confidence, JSON.stringify(claim.spans));
-      }
+        for (const claim of claims) {
+          stmt.run(itemId, claim.text, claim.confidence, JSON.stringify(claim.spans));
+        }
+      });
+
+      transaction();
+      logger.info('Claims extracted and stored', { itemId, count: claims.length });
     }
 
     res.json({
@@ -49,7 +78,7 @@ app.post('/api/nlp/extract-claims', async (req, res) => {
       count: claims.length
     });
   } catch (error) {
-    console.error('Claim extraction error:', error);
+    logger.error('Claim extraction error', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
@@ -70,13 +99,15 @@ app.post('/api/nlp/stance', async (req, res) => {
       stance
     });
   } catch (error) {
-    console.error('Stance analysis error:', error);
+    logger.error('Stance analysis error', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
 
 // Analyze toxicity
-app.post('/api/nlp/toxicity', async (req, res) => {
+app.post('/api/nlp/toxicity', writeLimiter, async (req, res) => {
+  const db = getDatabase();
+
   try {
     const { text, itemId } = req.body;
 
@@ -88,11 +119,16 @@ app.post('/api/nlp/toxicity', async (req, res) => {
 
     // Store score if itemId provided
     if (itemId && toxicity.score !== null) {
-      const db = getDatabase();
-      db.prepare(`
-        INSERT INTO scores (item_id, kind, value, model, params)
-        VALUES (?, 'toxicity', ?, ?, ?)
-      `).run(itemId, toxicity.score, toxicity.model, JSON.stringify(toxicity.attributes));
+      // Use explicit transaction
+      const transaction = db.transaction(() => {
+        db.prepare(`
+          INSERT INTO scores (item_id, kind, value, model, params)
+          VALUES (?, 'toxicity', ?, ?, ?)
+        `).run(itemId, toxicity.score, toxicity.model, JSON.stringify(toxicity.attributes));
+      });
+
+      transaction();
+      logger.info('Toxicity score stored', { itemId, score: toxicity.score });
     }
 
     res.json({
@@ -100,16 +136,17 @@ app.post('/api/nlp/toxicity', async (req, res) => {
       toxicity
     });
   } catch (error) {
-    console.error('Toxicity analysis error:', error);
+    logger.error('Toxicity analysis error', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
 
 // Build propagation graph from items
-app.post('/api/nlp/build-graph', async (req, res) => {
+app.post('/api/nlp/build-graph', writeLimiter, async (req, res) => {
+  const db = getDatabase();
+
   try {
     const { windowHours = 24 } = req.body;
-    const db = getDatabase();
 
     // Get recent items
     const items = db.prepare(`
@@ -138,16 +175,21 @@ app.post('/api/nlp/build-graph', async (req, res) => {
       }
     }
 
-    // Store edges
-    const stmt = db.prepare(`
-      INSERT OR REPLACE INTO edges (src_url, dst_url, weight, window_start, window_end)
-      VALUES (?, ?, ?, datetime('now', '-' || ? || ' hours'), datetime('now'))
-    `);
+    // Store edges in transaction
+    const transaction = db.transaction(() => {
+      const stmt = db.prepare(`
+        INSERT OR REPLACE INTO edges (src_url, dst_url, weight, window_start, window_end)
+        VALUES (?, ?, ?, datetime('now', '-' || ? || ' hours'), datetime('now'))
+      `);
 
-    for (const edge of edges) {
-      stmt.run(edge.src, edge.dst, edge.weight, windowHours);
-    }
+      for (const edge of edges) {
+        stmt.run(edge.src, edge.dst, edge.weight, windowHours);
+      }
+    });
 
+    transaction();
+
+    logger.info('Propagation graph built', { nodes: items.length, edges: edges.length, windowHours });
     res.json({
       success: true,
       nodes: items.length,
@@ -155,7 +197,7 @@ app.post('/api/nlp/build-graph', async (req, res) => {
       message: `Built graph with ${items.length} nodes and ${edges.length} edges`
     });
   } catch (error) {
-    console.error('Graph build error:', error);
+    logger.error('Graph build error', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
@@ -179,7 +221,7 @@ app.get('/api/nlp/graph', (req, res) => {
       count: edges.length
     });
   } catch (error) {
-    console.error('Get graph error:', error);
+    logger.error('Get graph error', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
@@ -190,6 +232,10 @@ function extractURLs(text) {
   return [...text.matchAll(urlRegex)].map(match => match[0]);
 }
 
+// Error logger middleware (must be last)
+app.use(errorLogger(logger));
+
 app.listen(PORT, () => {
+  logger.info('NLP API started', { port: PORT, env: process.env.NODE_ENV || 'development' });
   console.log(`✅ NLP API running on http://localhost:${PORT}`);
 });

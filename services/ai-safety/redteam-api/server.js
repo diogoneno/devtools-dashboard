@@ -1,16 +1,39 @@
 import express from 'express';
 import { applySecurityMiddleware, writeRateLimiter } from '../../shared/security-middleware.js';
+import { createLogger, requestLogger, errorLogger } from '../../shared/logger.js';
 import axios from 'axios';
 import { getDatabase } from '../shared/init-db.js';
 
 const app = express();
 const PORT = process.env.PORT || 5012;
 
+// Create logger
+const logger = createLogger({
+  serviceName: 'redteam-api',
+  level: process.env.LOG_LEVEL || 'info',
+  enableFile: process.env.NODE_ENV === 'production'
+});
+
 // Apply security middleware (headers, CORS, rate limiting, body size limits)
 applySecurityMiddleware(app);
 
+// Add request logging
+app.use(requestLogger(logger));
+
+// Alias for write rate limiter
+const writeLimiter = writeRateLimiter();
+
+// Health check - now verifies DB connection
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'redteam-api' });
+  try {
+    const db = getDatabase();
+    // Verify DB connection with a simple query
+    db.prepare('SELECT 1').get();
+    res.json({ status: 'ok', service: 'redteam-api', database: 'connected' });
+  } catch (error) {
+    logger.error('Health check failed', { error: error.message });
+    res.status(503).json({ status: 'error', service: 'redteam-api', database: 'disconnected', error: error.message });
+  }
 });
 
 // Get available attack recipes
@@ -32,15 +55,17 @@ app.get('/api/recipes', (req, res) => {
     const recipes = db.prepare(query).all(...params);
     res.json({ success: true, recipes });
   } catch (error) {
+    logger.error('Error fetching recipes', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
 
 // Run an attack scenario
-app.post('/api/attack', async (req, res) => {
+app.post('/api/attack', writeLimiter, async (req, res) => {
+  const db = getDatabase();
+
   try {
     const { recipe, target, variables, dry_run } = req.body;
-    const db = getDatabase();
 
     // Get recipe template
     const recipeData = db.prepare('SELECT * FROM attack_recipes WHERE name = ?').get(recipe);
@@ -96,23 +121,28 @@ app.post('/api/attack', async (req, res) => {
       }
     }
 
-    // Store attack result
-    db.prepare(`
-      INSERT INTO redteam_attacks (attack_name, recipe, target_endpoint, target_model,
-                                   attack_payload, response_text, success, severity, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      recipeData.name,
-      recipe,
-      target || null,
-      req.body.model || null,
-      payload,
-      JSON.stringify(response),
-      success ? 1 : 0,
-      recipeData.severity,
-      req.body.notes || null
-    );
+    // Store attack result in transaction
+    const transaction = db.transaction(() => {
+      db.prepare(`
+        INSERT INTO redteam_attacks (attack_name, recipe, target_endpoint, target_model,
+                                     attack_payload, response_text, success, severity, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        recipeData.name,
+        recipe,
+        target || null,
+        req.body.model || null,
+        payload,
+        JSON.stringify(response),
+        success ? 1 : 0,
+        recipeData.severity,
+        req.body.notes || null
+      );
+    });
 
+    transaction();
+
+    logger.info('Attack executed', { recipe, target, success, severity: recipeData.severity });
     res.json({
       success: true,
       attack: {
@@ -126,6 +156,7 @@ app.post('/api/attack', async (req, res) => {
       }
     });
   } catch (error) {
+    logger.error('Error executing attack', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
@@ -159,6 +190,7 @@ app.get('/api/history', (req, res) => {
 
     res.json({ success: true, history });
   } catch (error) {
+    logger.error('Error fetching history', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
@@ -186,27 +218,39 @@ app.get('/api/stats', (req, res) => {
       }
     });
   } catch (error) {
+    logger.error('Error fetching stats', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
 
 // Create custom attack recipe
-app.post('/api/recipes', (req, res) => {
+app.post('/api/recipes', writeLimiter, (req, res) => {
+  const db = getDatabase();
+
   try {
     const { name, category, description, template, success_criteria, severity } = req.body;
-    const db = getDatabase();
 
-    db.prepare(`
-      INSERT INTO attack_recipes (name, category, description, template, success_criteria, severity)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(name, category, description, template, success_criteria, severity);
+    const transaction = db.transaction(() => {
+      db.prepare(`
+        INSERT INTO attack_recipes (name, category, description, template, success_criteria, severity)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(name, category, description, template, success_criteria, severity);
+    });
 
+    transaction();
+
+    logger.info('Attack recipe created', { name, category, severity });
     res.json({ success: true, message: 'Recipe created' });
   } catch (error) {
+    logger.error('Error creating recipe', { error: error.message, stack: error.stack });
     res.status(500).json({ error: error.message });
   }
 });
 
+// Error logger middleware (must be last)
+app.use(errorLogger(logger));
+
 app.listen(PORT, () => {
+  logger.info('Red Team API started', { port: PORT, env: process.env.NODE_ENV || 'development' });
   console.log(`✅ Red Team API running on http://localhost:${PORT}`);
 });

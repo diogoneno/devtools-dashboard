@@ -19,6 +19,7 @@
     "glob": "^10.3.10",
     "gray-matter": "^4.0.3",
     "node-fetch": "^3.3.2",
+    "winston": "^3.18.3",
     "yaml": "^2.3.4"
   },
   "devDependencies": {
